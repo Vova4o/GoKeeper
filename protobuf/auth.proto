@@ -1,0 +1,97 @@
+syntax = "proto3";
+
+package auth;
+
+option go_package = "protobuf/auth;auth";
+
+service AuthService {
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+  rpc Login(LoginRequest) returns (LoginResponse);
+  rpc RefreshToken(RefreshTokenRequest) returns (RefreshTokenResponse);
+  rpc SendData(SendDataRequest) returns (SendDataResponse);
+  rpc ReceiveData(ReceiveDataRequest) returns (ReceiveDataResponse);
+}
+
+message RegisterRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message RegisterResponse {
+  bool success = 1;
+  string token = 2;
+  string refreshToken = 3;
+}
+
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message LoginResponse {
+  string token = 1;
+  string refreshToken = 2;
+}
+
+message RefreshTokenRequest {
+  string refreshToken = 1;
+}
+
+message RefreshTokenResponse {
+  string token = 1;
+  string refreshToken = 2;
+}
+
+enum DataType {
+  LOGIN_PASSWORD = 0;
+  TEXT_NOTE = 1;
+  BINARY_DATA = 2;
+  BANK_CARD = 3;
+}
+
+message Data {
+  DataType dataType = 1;
+  oneof data {
+    LoginPassword loginPassword = 2;
+    TextNote textNote = 3;
+    BinaryData binaryData = 4;
+    BankCard bankCard = 5;
+  }
+}
+
+message LoginPassword {
+  string login = 1;
+  string password = 2;
+}
+
+message TextNote {
+  string text = 1;
+}
+
+message BinaryData {
+  bytes data = 1;
+}
+
+message BankCard {
+  string cardNumber = 1;
+  string cardHolder = 2;
+  string cvv = 3;
+  string expiryDate = 4;
+}
+
+message SendDataRequest {
+  string token = 1;
+  Data data = 2;
+}
+
+message SendDataResponse {
+  bool success = 1;
+}
+
+message ReceiveDataRequest {
+  string token = 1;
+}
+
+message ReceiveDataResponse {
+  repeated Data data = 1;
+}

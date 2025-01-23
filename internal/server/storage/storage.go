@@ -22,12 +22,14 @@ type Storage struct {
 func NewStorage(ctx context.Context, connString string, logger *logger.Logger) (*Storage, error) {
 	db, err := gorm.Open(postgres.Open(connString), &gorm.Config{})
 	if err != nil {
+		logger.Error("Failed to connect to the database: " + err.Error())
 		return nil, err
 	}
 
 	// Автоматическая миграция схемы
-	err = db.AutoMigrate(&models.User{}, &models.PrivateInfo{})
+	err = db.AutoMigrate(&models.User{}, &models.PrivateInfo{}, &models.RefreshToken{})
 	if err != nil {
+		logger.Error("Failed to migrate the schema: " + err.Error())
 		return nil, err
 	}
 
@@ -39,20 +41,29 @@ func NewStorage(ctx context.Context, connString string, logger *logger.Logger) (
 }
 
 // CreateUser создает нового пользователя
-func (s *Storage) CreateUser(ctx context.Context, username, password string) (bool, error) {
-	user := models.User{
-		Username: username,
-		Password: password,
-	}
+func (s *Storage) CreateUser(ctx context.Context, user models.User) (uint, error) {
 
 	result := s.db.WithContext(ctx).Create(&user)
 	if result.Error != nil {
 		s.logger.Error("Failed to create user: " + result.Error.Error())
-		return false, result.Error
+		return 0, result.Error
 	}
 
+	// Возвращаем ID созданного пользователя
 	s.logger.Info("User created successfully")
-	return true, nil
+	return user.ID, nil
+}
+
+// SaveRefreshToken сохраняет refresh токен
+func (s *Storage) SaveRefreshToken(ctx context.Context, token models.RefreshToken) error {
+	result := s.db.WithContext(ctx).Create(&token)
+	if result.Error != nil {
+		s.logger.Error("Failed to save refresh token: " + result.Error.Error())
+		return result.Error
+	}
+
+	s.logger.Info("Refresh token saved successfully")
+	return nil
 }
 
 // AuthenticateUser аутентифицирует пользователя

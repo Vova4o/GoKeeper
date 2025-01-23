@@ -61,9 +61,9 @@ func main() {
 	}
 
 	jwtService := jwtauth.NewJWTService(settings.Secret, settings.Issuer)
-	serv := service.NewService(stor)
+	serv := service.NewService(stor, settings.Secret, settings.Issuer, logger)
 
-	authService := handlers.NewAuthServiceServer(jwtService, serv)
+	authService := handlers.NewHandlersService(jwtService, serv, logger)
 
 	s := grpc.NewServer(grpc.Creds(creds), grpc.UnaryInterceptor(authService.AuthFuncOverride))
 	pb.RegisterAuthServiceServer(s, authService)

@@ -19,11 +19,12 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AuthService_Register_FullMethodName     = "/auth.AuthService/Register"
-	AuthService_Login_FullMethodName        = "/auth.AuthService/Login"
-	AuthService_RefreshToken_FullMethodName = "/auth.AuthService/RefreshToken"
-	AuthService_SendData_FullMethodName     = "/auth.AuthService/SendData"
-	AuthService_ReceiveData_FullMethodName  = "/auth.AuthService/ReceiveData"
+	AuthService_Register_FullMethodName       = "/auth.AuthService/Register"
+	AuthService_Login_FullMethodName          = "/auth.AuthService/Login"
+	AuthService_MasterPassword_FullMethodName = "/auth.AuthService/MasterPassword"
+	AuthService_RefreshToken_FullMethodName   = "/auth.AuthService/RefreshToken"
+	AuthService_SendData_FullMethodName       = "/auth.AuthService/SendData"
+	AuthService_ReceiveData_FullMethodName    = "/auth.AuthService/ReceiveData"
 )
 
 // AuthServiceClient is the client API for AuthService service.
@@ -32,6 +33,7 @@ const (
 type AuthServiceClient interface {
 	Register(ctx context.Context, in *RegisterRequest, opts ...grpc.CallOption) (*RegisterResponse, error)
 	Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*LoginResponse, error)
+	MasterPassword(ctx context.Context, in *MasterPasswordRequest, opts ...grpc.CallOption) (*MasterPasswordResponse, error)
 	RefreshToken(ctx context.Context, in *RefreshTokenRequest, opts ...grpc.CallOption) (*RefreshTokenResponse, error)
 	SendData(ctx context.Context, in *SendDataRequest, opts ...grpc.CallOption) (*SendDataResponse, error)
 	ReceiveData(ctx context.Context, in *ReceiveDataRequest, opts ...grpc.CallOption) (*ReceiveDataResponse, error)
@@ -59,6 +61,16 @@ func (c *authServiceClient) Login(ctx context.Context, in *LoginRequest, opts ..
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(LoginResponse)
 	err := c.cc.Invoke(ctx, AuthService_Login_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) MasterPassword(ctx context.Context, in *MasterPasswordRequest, opts ...grpc.CallOption) (*MasterPasswordResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MasterPasswordResponse)
+	err := c.cc.Invoke(ctx, AuthService_MasterPassword_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -101,6 +113,7 @@ func (c *authServiceClient) ReceiveData(ctx context.Context, in *ReceiveDataRequ
 type AuthServiceServer interface {
 	Register(context.Context, *RegisterRequest) (*RegisterResponse, error)
 	Login(context.Context, *LoginRequest) (*LoginResponse, error)
+	MasterPassword(context.Context, *MasterPasswordRequest) (*MasterPasswordResponse, error)
 	RefreshToken(context.Context, *RefreshTokenRequest) (*RefreshTokenResponse, error)
 	SendData(context.Context, *SendDataRequest) (*SendDataResponse, error)
 	ReceiveData(context.Context, *ReceiveDataRequest) (*ReceiveDataResponse, error)
@@ -119,6 +132,9 @@ func (UnimplementedAuthServiceServer) Register(context.Context, *RegisterRequest
 }
 func (UnimplementedAuthServiceServer) Login(context.Context, *LoginRequest) (*LoginResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Login not implemented")
+}
+func (UnimplementedAuthServiceServer) MasterPassword(context.Context, *MasterPasswordRequest) (*MasterPasswordResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MasterPassword not implemented")
 }
 func (UnimplementedAuthServiceServer) RefreshToken(context.Context, *RefreshTokenRequest) (*RefreshTokenResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RefreshToken not implemented")
@@ -182,6 +198,24 @@ func _AuthService_Login_Handler(srv interface{}, ctx context.Context, dec func(i
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).Login(ctx, req.(*LoginRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_MasterPassword_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MasterPasswordRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).MasterPassword(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_MasterPassword_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).MasterPassword(ctx, req.(*MasterPasswordRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -254,6 +288,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Login",
 			Handler:    _AuthService_Login_Handler,
+		},
+		{
+			MethodName: "MasterPassword",
+			Handler:    _AuthService_MasterPassword_Handler,
 		},
 		{
 			MethodName: "RefreshToken",

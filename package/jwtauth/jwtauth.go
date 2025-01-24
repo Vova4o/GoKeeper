@@ -53,6 +53,16 @@ func (s *JWTService) CreateRefreshToken(userID string, timer time.Duration) (str
 	return s.CreateToken("refresh", timer, additionalClaims)
 }
 
+// UserIDFromToken returns the user ID from the token
+func (s *JWTService) UserIDFromToken(tokenString string) (string, error) {
+	claims, err := s.ParseToken(tokenString)
+	if err != nil {
+		return "", err
+	}
+	userID := claims["user_id"].(string)
+	return userID, nil
+}
+
 // ParseToken parses and validates a JWT token
 func (s *JWTService) ParseToken(tokenString string) (jwt.MapClaims, error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {

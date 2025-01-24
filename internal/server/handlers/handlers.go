@@ -21,8 +21,8 @@ type Claims struct {
 	jwt.StandardClaims
 }
 
-// AuthServiceServer struct
-type AuthServiceServer struct {
+// HandleServiceServer struct
+type HandleServiceServer struct {
 	pb.UnimplementedAuthServiceServer
 	jwtService JWTServicer
 	serv       Servicer
@@ -33,6 +33,7 @@ type AuthServiceServer struct {
 // Servicer interface
 type Servicer interface {
 	RegisterUser(ctx context.Context, user models.User) (*models.UserRegesred, error)
+	MasterPasswordCheckOrStore(ctx context.Context, token, masterPassword string) (bool, error)
 	// AuthenticateUser(ctx context.Context, username, password string) (bool, error)
 	// RecordData(ctx context.Context, userID string, data *pb.Data) error
 	// ReadData(ctx context.Context, userID string) ([]*pb.Data, error)
@@ -46,8 +47,8 @@ type JWTServicer interface {
 }
 
 // NewHandlersService function
-func NewHandlersService(jwtService JWTServicer, serv Servicer, log *logger.Logger) *AuthServiceServer {
-	return &AuthServiceServer{
+func NewHandlersService(jwtService JWTServicer, serv Servicer, log *logger.Logger) *HandleServiceServer {
+	return &HandleServiceServer{
 		jwtService: jwtService,
 		serv:       serv,
 		jwtKey:     []byte("my_secret_key"), // TODO: move to config
@@ -56,11 +57,11 @@ func NewHandlersService(jwtService JWTServicer, serv Servicer, log *logger.Logge
 }
 
 // Register method
-func (s *AuthServiceServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.RegisterResponse, error) {
+func (s *HandleServiceServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.RegisterResponse, error) {
 	// Логика регистрации пользователя
 	user := models.User{
 		Username: req.Username,
-		Password: req.Password,
+		PasswordHash: req.Password,
 	}
 
 	userAfterReg, err := s.serv.RegisterUser(ctx, user)
@@ -82,7 +83,7 @@ func (s *AuthServiceServer) Register(ctx context.Context, req *pb.RegisterReques
 }
 
 // AuthFuncOverride method
-func (s *AuthServiceServer) AuthFuncOverride(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+func (s *HandleServiceServer) AuthFuncOverride(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 	if info.FullMethod == "/auth.AuthService/Login" || info.FullMethod == "/auth.AuthService/Register" {
 		return handler(ctx, req)
 	}
@@ -115,8 +116,26 @@ func (s *AuthServiceServer) AuthFuncOverride(ctx context.Context, req interface{
 	return handler(ctx, req)
 }
 
+// MasterPasswordCheckOrStore method for checking or storing master password hash
+func (s *HandleServiceServer) MasterPasswordCheckOrStore(ctx context.Context, req *pb.MasterPasswordRequest) (*pb.MasterPasswordResponse, error) {
+	// Logick of storring and checking hash of master password
+	s.logger.Info("MasterPasswordCheckOrStore handle called!")
+
+	result, err := s.serv.MasterPasswordCheckOrStore(ctx, req.Token, req.MasterPassword)
+	if err != nil {
+		s.logger.Error("Failed to check or store master password: " + err.Error())
+		return nil, err
+	}
+
+	// Idea is to return 401 to client, so that client can ask for master password again
+
+	return &pb.MasterPasswordResponse{
+		Success: result,
+	}, nil
+}
+
 // // Login method
-// func (s *AuthServiceServer) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResponse, error) {
+// func (s *HandleServiceServer) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResponse, error) {
 // 	log.Println("Login handle called!")
 
 // 	isUser, err := s.serv.AuthenticateUser(ctx, req.Username, req.Password)
@@ -142,7 +161,7 @@ func (s *AuthServiceServer) AuthFuncOverride(ctx context.Context, req interface{
 // }
 
 // // RefreshToken method
-// func (s *AuthServiceServer) RefreshToken(ctx context.Context, req *pb.RefreshTokenRequest) (*pb.RefreshTokenResponse, error) {
+// func (s *HandleServiceServer) RefreshToken(ctx context.Context, req *pb.RefreshTokenRequest) (*pb.RefreshTokenResponse, error) {
 // 	log.Println("RefreshToken handle called!")
 
 // 	claims, err := s.jwtService.ParseToken(req.RefreshToken)
@@ -169,7 +188,7 @@ func (s *AuthServiceServer) AuthFuncOverride(ctx context.Context, req interface{
 // }
 
 // // SendData method
-// func (s *AuthServiceServer) SendData(ctx context.Context, req *pb.SendDataRequest) (*pb.SendDataResponse, error) {
+// func (s *HandleServiceServer) SendData(ctx context.Context, req *pb.SendDataRequest) (*pb.SendDataResponse, error) {
 // 	log.Println("SendData handle called!")
 
 // 	claims, err := s.jwtService.ParseToken(req.Token)
@@ -191,7 +210,7 @@ func (s *AuthServiceServer) AuthFuncOverride(ctx context.Context, req interface{
 // }
 
 // // ReceiveData method
-// func (s *AuthServiceServer) ReceiveData(ctx context.Context, req *pb.ReceiveDataRequest) (*pb.ReceiveDataResponse, error) {
+// func (s *HandleServiceServer) ReceiveData(ctx context.Context, req *pb.ReceiveDataRequest) (*pb.ReceiveDataResponse, error) {
 // 	log.Println("ReceiveData handle called!")
 
 // 	claims, err := s.jwtService.ParseToken(req.Token)

@@ -7,6 +7,7 @@ option go_package = "protobuf/auth;auth";
 service AuthService {
   rpc Register(RegisterRequest) returns (RegisterResponse);
   rpc Login(LoginRequest) returns (LoginResponse);
+  rpc MasterPassword(MasterPasswordRequest) returns (MasterPasswordResponse);
   rpc RefreshToken(RefreshTokenRequest) returns (RefreshTokenResponse);
   rpc SendData(SendDataRequest) returns (SendDataResponse);
   rpc ReceiveData(ReceiveDataRequest) returns (ReceiveDataResponse);
@@ -21,6 +22,15 @@ message RegisterResponse {
   uint64 userID = 1;
   string token = 2;
   string refreshToken = 3;
+}
+
+message MasterPasswordRequest {
+  string token = 1;
+  string masterPassword = 2;
+}
+
+message MasterPasswordResponse {
+  bool success = 1;
 }
 
 message LoginRequest {

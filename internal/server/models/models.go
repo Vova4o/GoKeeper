@@ -8,7 +8,8 @@ import (
 type User struct {
 	gorm.Model
 	Username      string `gorm:"uniqueIndex;not null"`
-	Password      string `gorm:"not null"`
+	PasswordHash      string `gorm:"not null"`
+    MasterPasswordHash string `gorm:"default:null"`
 	RefreshTokens []RefreshToken
 }
 

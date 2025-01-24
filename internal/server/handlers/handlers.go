@@ -41,8 +41,8 @@ type Servicer interface {
 
 // JWTServicer interface for JWT service methods
 type JWTServicer interface {
-	CreateAccessToken(userID string, duration time.Duration) (string, error)
-	CreateRefreshToken(userID string, duration time.Duration) (string, error)
+	CreateAccessToken(userID int, duration time.Duration) (string, error)
+	CreateRefreshToken(userID int, duration time.Duration) (string, error)
 	ParseToken(tokenString string) (jwt.MapClaims, error)
 }
 
@@ -76,7 +76,7 @@ func (s *HandleServiceServer) Register(ctx context.Context, req *pb.RegisterRequ
 	}
 
 	return &pb.RegisterResponse{
-		UserID:       userAfterReg.UserID,
+		UserID:       int64(userAfterReg.UserID),
 		Token:        userAfterReg.AccessToken,
 		RefreshToken: userAfterReg.RefreshToken,
 	}, nil

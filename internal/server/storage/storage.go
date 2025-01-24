@@ -37,9 +37,9 @@ func NewStorage(ctx context.Context, connString string, logger *logger.Logger) (
 }
 
 // CreateUser создает нового пользователя
-func (s *Storage) CreateUser(ctx context.Context, user models.User) (uint, error) {
+func (s *Storage) CreateUser(ctx context.Context, user models.User) (int, error) {
 	query := `INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id`
-	var userID uint
+	var userID int
 	err := s.db.QueryRowContext(ctx, query, user.Username, user.PasswordHash).Scan(&userID)
 	if err != nil {
 		s.logger.Error("Failed to create user")
@@ -85,7 +85,7 @@ func (s *Storage) AuthenticateUser(ctx context.Context, username, password strin
 }
 
 // CheckMasterPassword проверяет мастер-пароль
-func (s *Storage) CheckMasterPassword(ctx context.Context, userID uint64) (string, error) {
+func (s *Storage) CheckMasterPassword(ctx context.Context, userID int) (string, error) {
 	query := `SELECT master_password_hash FROM users WHERE id = $1`
 	var masterPasswordHash string
 	err := s.db.QueryRowContext(ctx, query, userID).Scan(&masterPasswordHash)
@@ -101,7 +101,7 @@ func (s *Storage) CheckMasterPassword(ctx context.Context, userID uint64) (strin
 }
 
 // StoreMasterPassword сохраняет мастер-пароль
-func (s *Storage) StoreMasterPassword(ctx context.Context, userID uint64, masterPasswordHash string) error {
+func (s *Storage) StoreMasterPassword(ctx context.Context, userID int, masterPasswordHash string) error {
 	query := `UPDATE users SET master_password_hash = $1 WHERE id = $2`
 	_, err := s.db.ExecContext(ctx, query, masterPasswordHash, userID)
 	if err != nil {

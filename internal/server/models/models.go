@@ -7,15 +7,15 @@ import (
 // User модель пользователя
 type User struct {
 	gorm.Model
-	Username      string `gorm:"uniqueIndex;not null"`
-	PasswordHash      string `gorm:"not null"`
-    MasterPasswordHash string `gorm:"default:null"`
-	RefreshTokens []RefreshToken
+	Username           string `gorm:"uniqueIndex;not null"`
+	PasswordHash       string `gorm:"not null"`
+	MasterPasswordHash string `gorm:"default:null"`
+	RefreshTokens      []RefreshToken
 }
 
 // UserRegesred struct to return user tokens after regestration
 type UserRegesred struct {
-	UserID       uint64
+	UserID       int
 	AccessToken  string
 	RefreshToken string
 }
@@ -33,7 +33,7 @@ type Settings struct {
 // RefreshToken модель для хранения refresh токенов
 type RefreshToken struct {
 	gorm.Model
-	UserID    uint64   `gorm:"not null"`
+	UserID    int    `gorm:"not null"`
 	Token     string `gorm:"not null"`
 	IsRevoked bool   `gorm:"not null, default:false"`
 }

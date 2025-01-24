@@ -21,11 +21,11 @@ type Service struct {
 
 // Storager that is interface to work with storage layer
 type Storager interface {
-	CreateUser(ctx context.Context, user models.User) (uint, error)
+	CreateUser(ctx context.Context, user models.User) (int, error)
 	SaveRefreshToken(ctx context.Context, userRefresh models.RefreshToken) error
 	AuthenticateUser(ctx context.Context, username, password string) (bool, error)
-	CheckMasterPassword(ctx context.Context, userID uint64) (string, error)
-	StoreMasterPassword(ctx context.Context, userID uint64, masterPasswordHash string) error
+	CheckMasterPassword(ctx context.Context, userID int) (string, error)
+	StoreMasterPassword(ctx context.Context, userID int, masterPasswordHash string) error
 }
 
 // NewService создает новый экземпляр сервиса
@@ -53,23 +53,20 @@ func (s *Service) RegisterUser(ctx context.Context, user models.User) (*models.U
 		return nil, err
 	}
 
-	accessToken, err := s.jwtService.CreateAccessToken(user.Username, time.Minute*60)
+	accessToken, err := s.jwtService.CreateAccessToken(userID, time.Minute*60)
 	if err != nil {
 		s.logger.Error("Failed to create access token: " + err.Error())
 		return nil, err
 	}
 
-	refreshToken, err := s.jwtService.CreateRefreshToken(user.Username, time.Hour*24*7)
+	refreshToken, err := s.jwtService.CreateRefreshToken(userID, time.Hour*24*7)
 	if err != nil {
 		s.logger.Error("Failed to create refresh token: " + err.Error())
 		return nil, err
 	}
 
-	// convert uint to uint64
-	userID64 := uint64(userID)
-
 	err = s.stor.SaveRefreshToken(ctx, models.RefreshToken{
-		UserID:    userID64,
+		UserID:    userID,
 		Token:     refreshToken,
 		IsRevoked: false,
 	})
@@ -79,7 +76,7 @@ func (s *Service) RegisterUser(ctx context.Context, user models.User) (*models.U
 	}
 
 	return &models.UserRegesred{
-		UserID:       userID64,
+		UserID:       userID,
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 	}, nil
@@ -93,25 +90,19 @@ func (s *Service) MasterPasswordCheckOrStore(ctx context.Context, token, masterP
 		return false, err
 	}
 
-	// check if master password is already stored
+	// get user ID from token
 	userID, err := s.jwtService.UserIDFromToken(token)
 	if err != nil {
 		s.logger.Error("Failed to get user ID from token: " + err.Error())
 		return false, err
 	}
 
-	// convert string to uint64
-	userID64, err := stringToUint64(userID)
-	if err != nil {
-		s.logger.Error("Failed to convert string to uint64: " + err.Error())
-		return false, err
-	}
-
-	masterPasswordHashFromDB, err := s.stor.CheckMasterPassword(ctx, userID64)
+	// check if master password is already stored
+	masterPasswordHashFromDB, err := s.stor.CheckMasterPassword(ctx, userID)
 	if err != nil {
 		if err.Error() == "record not found" {
 			// if not stored, store it
-			err = s.stor.StoreMasterPassword(ctx, userID64, masterPasswordHash)
+			err = s.stor.StoreMasterPassword(ctx, userID, masterPasswordHash)
 			if err != nil {
 				s.logger.Error("Failed to store master password: " + err.Error())
 				return false, err
@@ -130,8 +121,6 @@ func (s *Service) MasterPasswordCheckOrStore(ctx context.Context, token, masterP
 
 	return false, nil
 }
-
-// func (s *Service) Master
 
 // // AuthenticateUser аутентифицирует пользователя
 // func (s *Service) AuthenticateUser(ctx context.Context, username, password string) (bool, error) {

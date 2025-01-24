@@ -38,7 +38,7 @@ func (s *JWTService) CreateToken(tokenType string, duration time.Duration, addit
 }
 
 // CreateAccessToken creates an access token with user ID
-func (s *JWTService) CreateAccessToken(userID string, timer time.Duration) (string, error) {
+func (s *JWTService) CreateAccessToken(userID int, timer time.Duration) (string, error) {
 	additionalClaims := jwt.MapClaims{
 		"user_id": userID,
 	}
@@ -46,7 +46,7 @@ func (s *JWTService) CreateAccessToken(userID string, timer time.Duration) (stri
 }
 
 // CreateRefreshToken creates a refresh token with user ID
-func (s *JWTService) CreateRefreshToken(userID string, timer time.Duration) (string, error) {
+func (s *JWTService) CreateRefreshToken(userID int, timer time.Duration) (string, error) {
 	additionalClaims := jwt.MapClaims{
 		"user_id": userID,
 	}
@@ -54,12 +54,12 @@ func (s *JWTService) CreateRefreshToken(userID string, timer time.Duration) (str
 }
 
 // UserIDFromToken returns the user ID from the token
-func (s *JWTService) UserIDFromToken(tokenString string) (string, error) {
+func (s *JWTService) UserIDFromToken(tokenString string) (int, error) {
 	claims, err := s.ParseToken(tokenString)
 	if err != nil {
-		return "", err
+		return 0, err
 	}
-	userID := claims["user_id"].(string)
+	userID := int(claims["user_id"].(float64))
 	return userID, nil
 }
 

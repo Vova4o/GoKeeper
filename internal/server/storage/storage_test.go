@@ -111,7 +111,7 @@ func TestCheckMasterPassword(t *testing.T) {
 	logger := logger.NewLogger("info")
 	storage := &Storage{db: db, logger: logger}
 
-	userID := uint64(1)
+	userID := 1
 	masterPasswordHash := "hashedmasterpassword"
 
 	mock.ExpectQuery(`SELECT master_password_hash FROM users WHERE id = \$1`).
@@ -139,7 +139,7 @@ func TestCheckMasterPasswordNotFound(t *testing.T) {
     logger := logger.NewLogger("info")
     storage := &Storage{db: db, logger: logger}
 
-    userID := uint64(1)
+    userID := 1
 
     mock.ExpectQuery(`SELECT master_password_hash FROM users WHERE id = \$1`).
         WithArgs(userID).
@@ -166,7 +166,7 @@ func TestStoreMasterPassword(t *testing.T) {
 	logger := logger.NewLogger("info")
 	storage := &Storage{db: db, logger: logger}
 
-	userID := uint64(1)
+	userID := 1
 	masterPasswordHash := "hashedmasterpassword"
 
 	mock.ExpectExec(`UPDATE users SET master_password_hash = \$1 WHERE id = \$2`).

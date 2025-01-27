@@ -56,6 +56,14 @@ func (m *MockStorager) SaveData(ctx context.Context, userID string, data models.
 	return args.Error(0)
 }
 
+func (m *MockStorager) ReadData(ctx context.Context, userID string) ([]*models.Data, error) {
+	args := m.Called(ctx, userID)
+	if data, ok := args.Get(0).([]*models.Data); ok {
+		return data, args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 func (m *MockStorager) FindUser(ctx context.Context, username string) (*models.User, error) {
 	args := m.Called(ctx, username)
 	if user, ok := args.Get(0).(*models.User); ok {

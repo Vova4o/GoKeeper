@@ -29,6 +29,7 @@ type Storager interface {
 	StoreMasterPassword(ctx context.Context, userID int, masterPasswordHash string) error
 	GetRefreshTokens(ctx context.Context, userID int) ([]models.RefreshToken, error)
 	SaveData(ctx context.Context, userID string, data models.Data) error
+	ReadData(ctx context.Context, userID string) ([]*models.Data, error)
 }
 
 // NewService создает новый экземпляр сервиса
@@ -278,7 +279,14 @@ func (s *Service) RecordData(ctx context.Context, userID string, data models.Dat
 	return nil
 }
 
-// // ReadData читает данные по типу
-// func (s *Service) ReadData(ctx context.Context, userID string) ([]*pb.Data, error) {
-// 	return s.stor.ReadData(ctx, userID)
-// }
+// ReadData читает данные по типу
+func (s *Service) ReadData(ctx context.Context, userID string) ([]*models.Data, error) {
+	// check if user exists
+	_, err := s.stor.FindUser(ctx, userID)
+	if err != nil {
+		s.logger.Error("Failed to find user: " + err.Error())
+		return nil, err
+	}
+
+	return s.stor.ReadData(ctx, userID)
+}

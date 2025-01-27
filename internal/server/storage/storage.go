@@ -219,6 +219,68 @@ func (s *Storage) SaveBankCard(ctx context.Context, userID string, bankCard mode
 	return nil
 }
 
+// ReadData читает данные по типу
+func (s *Storage) ReadData(ctx context.Context, userID string) ([]*models.Data, error) {
+    query := `SELECT data_type, login, password, title, content, filename, data, card_number, expiry_date, cvv FROM private_data WHERE user_id = $1`
+    rows, err := s.db.QueryContext(ctx, query, userID)
+    if err != nil {
+        s.logger.Error("Failed to read data: " + err.Error())
+        return nil, err
+    }
+    defer rows.Close()
+
+    var dataList []*models.Data
+    for rows.Next() {
+        var dataType int
+        var login, password, title, content, filename, cardNumber, expiryDate, cvv sql.NullString
+        var binaryData []byte
+
+        err := rows.Scan(&dataType, &login, &password, &title, &content, &filename, &binaryData, &cardNumber, &expiryDate, &cvv)
+        if err != nil {
+            s.logger.Error("Failed to scan row: " + err.Error())
+            return nil, err
+        }
+
+        data := &models.Data{
+            DataType: models.DataType(dataType),
+        }
+
+        switch data.DataType {
+        case models.DataTypeLoginPassword:
+            data.LoginPassword = &models.LoginPassword{
+                Username: login.String,
+                Password: password.String,
+            }
+        case models.DataTypeTextNote:
+            data.TextNote = &models.TextNote{
+                Title:   title.String,
+                Content: content.String,
+            }
+        case models.DataTypeBinaryData:
+            data.BinaryData = &models.BinaryData{
+                Filename: filename.String,
+                Data:     binaryData,
+            }
+        case models.DataTypeBankCard:
+            data.BankCard = &models.BankCard{
+                CardNumber: cardNumber.String,
+                ExpiryDate: expiryDate.String,
+                CVV:        cvv.String,
+            }
+        }
+
+        dataList = append(dataList, data)
+    }
+
+    if err := rows.Err(); err != nil {
+        s.logger.Error("Rows error: " + err.Error())
+        return nil, err
+    }
+
+    s.logger.Info("Data read successfully")
+    return dataList, nil
+}
+
 // Close закрывает соединение с базой данных
 func (s *Storage) Close(ctx context.Context) error {
 	return s.db.Close()

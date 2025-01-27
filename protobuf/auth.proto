@@ -10,7 +10,7 @@ service AuthService {
   rpc MasterPassword(MasterPasswordRequest) returns (MasterPasswordResponse);
   rpc RefreshToken(RefreshTokenRequest) returns (RefreshTokenResponse);
   rpc SendData(SendDataRequest) returns (SendDataResponse);
-  rpc ReceiveData(ReceiveDataRequest) returns (ReceiveDataResponse);
+  rpc ReceiveData(ReceiveDataRequest) returns (stream ReceiveDataResponse);
 }
 
 message RegisterRequest {
@@ -103,5 +103,5 @@ message ReceiveDataRequest {
 }
 
 message ReceiveDataResponse {
-  repeated Data data = 1;
+  Data data = 1;
 }

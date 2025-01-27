@@ -36,7 +36,7 @@ type AuthServiceClient interface {
 	MasterPassword(ctx context.Context, in *MasterPasswordRequest, opts ...grpc.CallOption) (*MasterPasswordResponse, error)
 	RefreshToken(ctx context.Context, in *RefreshTokenRequest, opts ...grpc.CallOption) (*RefreshTokenResponse, error)
 	SendData(ctx context.Context, in *SendDataRequest, opts ...grpc.CallOption) (*SendDataResponse, error)
-	ReceiveData(ctx context.Context, in *ReceiveDataRequest, opts ...grpc.CallOption) (*ReceiveDataResponse, error)
+	ReceiveData(ctx context.Context, in *ReceiveDataRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ReceiveDataResponse], error)
 }
 
 type authServiceClient struct {
@@ -97,15 +97,24 @@ func (c *authServiceClient) SendData(ctx context.Context, in *SendDataRequest, o
 	return out, nil
 }
 
-func (c *authServiceClient) ReceiveData(ctx context.Context, in *ReceiveDataRequest, opts ...grpc.CallOption) (*ReceiveDataResponse, error) {
+func (c *authServiceClient) ReceiveData(ctx context.Context, in *ReceiveDataRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ReceiveDataResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ReceiveDataResponse)
-	err := c.cc.Invoke(ctx, AuthService_ReceiveData_FullMethodName, in, out, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &AuthService_ServiceDesc.Streams[0], AuthService_ReceiveData_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &grpc.GenericClientStream[ReceiveDataRequest, ReceiveDataResponse]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
 }
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AuthService_ReceiveDataClient = grpc.ServerStreamingClient[ReceiveDataResponse]
 
 // AuthServiceServer is the server API for AuthService service.
 // All implementations must embed UnimplementedAuthServiceServer
@@ -116,7 +125,7 @@ type AuthServiceServer interface {
 	MasterPassword(context.Context, *MasterPasswordRequest) (*MasterPasswordResponse, error)
 	RefreshToken(context.Context, *RefreshTokenRequest) (*RefreshTokenResponse, error)
 	SendData(context.Context, *SendDataRequest) (*SendDataResponse, error)
-	ReceiveData(context.Context, *ReceiveDataRequest) (*ReceiveDataResponse, error)
+	ReceiveData(*ReceiveDataRequest, grpc.ServerStreamingServer[ReceiveDataResponse]) error
 	mustEmbedUnimplementedAuthServiceServer()
 }
 
@@ -142,8 +151,8 @@ func (UnimplementedAuthServiceServer) RefreshToken(context.Context, *RefreshToke
 func (UnimplementedAuthServiceServer) SendData(context.Context, *SendDataRequest) (*SendDataResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendData not implemented")
 }
-func (UnimplementedAuthServiceServer) ReceiveData(context.Context, *ReceiveDataRequest) (*ReceiveDataResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ReceiveData not implemented")
+func (UnimplementedAuthServiceServer) ReceiveData(*ReceiveDataRequest, grpc.ServerStreamingServer[ReceiveDataResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method ReceiveData not implemented")
 }
 func (UnimplementedAuthServiceServer) mustEmbedUnimplementedAuthServiceServer() {}
 func (UnimplementedAuthServiceServer) testEmbeddedByValue()                     {}
@@ -256,23 +265,16 @@ func _AuthService_SendData_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AuthService_ReceiveData_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ReceiveDataRequest)
-	if err := dec(in); err != nil {
-		return nil, err
+func _AuthService_ReceiveData_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ReceiveDataRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
 	}
-	if interceptor == nil {
-		return srv.(AuthServiceServer).ReceiveData(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AuthService_ReceiveData_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).ReceiveData(ctx, req.(*ReceiveDataRequest))
-	}
-	return interceptor(ctx, in, info, handler)
+	return srv.(AuthServiceServer).ReceiveData(m, &grpc.GenericServerStream[ReceiveDataRequest, ReceiveDataResponse]{ServerStream: stream})
 }
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AuthService_ReceiveDataServer = grpc.ServerStreamingServer[ReceiveDataResponse]
 
 // AuthService_ServiceDesc is the grpc.ServiceDesc for AuthService service.
 // It's only intended for direct use with grpc.RegisterService,
@@ -301,11 +303,13 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "SendData",
 			Handler:    _AuthService_SendData_Handler,
 		},
+	},
+	Streams: []grpc.StreamDesc{
 		{
-			MethodName: "ReceiveData",
-			Handler:    _AuthService_ReceiveData_Handler,
+			StreamName:    "ReceiveData",
+			Handler:       _AuthService_ReceiveData_Handler,
+			ServerStreams: true,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
 	Metadata: "protobuf/auth.proto",
 }

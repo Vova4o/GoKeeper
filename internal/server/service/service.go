@@ -2,7 +2,7 @@ package service
 
 import (
 	"context"
-	"strconv"
+	"errors"
 	"time"
 
 	"goKeeperYandex/package/jwtauth"
@@ -23,9 +23,12 @@ type Service struct {
 type Storager interface {
 	CreateUser(ctx context.Context, user models.User) (int, error)
 	SaveRefreshToken(ctx context.Context, userRefresh models.RefreshToken) error
-	AuthenticateUser(ctx context.Context, username, password string) (bool, error)
+	DeleteRefreshToken(ctx context.Context, token string) error
+	FindUser(ctx context.Context, username string) (*models.User, error)
 	CheckMasterPassword(ctx context.Context, userID int) (string, error)
 	StoreMasterPassword(ctx context.Context, userID int, masterPasswordHash string) error
+	GetRefreshTokens(ctx context.Context, userID int) ([]models.RefreshToken, error)
+	SaveData(ctx context.Context, userID string, data models.Data) error
 }
 
 // NewService создает новый экземпляр сервиса
@@ -122,27 +125,160 @@ func (s *Service) MasterPasswordCheckOrStore(ctx context.Context, token, masterP
 	return false, nil
 }
 
-// // AuthenticateUser аутентифицирует пользователя
-// func (s *Service) AuthenticateUser(ctx context.Context, username, password string) (bool, error) {
-// 	return s.stor.AuthenticateUser(ctx, username, password)
-// }
+// AuthenticateUser аутентифицирует пользователя
+func (s *Service) AuthenticateUser(ctx context.Context, username, password string) (*models.UserRegesred, error) {
+	// check if user exists
+	user, err := s.stor.FindUser(ctx, username)
+	if err != nil {
+		s.logger.Error("Failed to find user: " + err.Error())
+		return nil, err
+	}
 
-// // RecordData записывает данные
-// func (s *Service) RecordData(ctx context.Context, userID string, data *pb.Data) error {
-// 	return s.stor.RecordData(ctx, userID, data)
-// }
+	// check if password is correct
+	if !passwordhash.CheckPasswordHash(password, user.PasswordHash) {
+		return nil, errors.New("invalid password")
+	}
+
+	// create access token
+	accessToken, err := s.jwtService.CreateAccessToken(user.UserID, time.Minute*60)
+	if err != nil {
+		s.logger.Error("Failed to create access token: " + err.Error())
+		return nil, err
+	}
+
+	// create refresh token
+	refreshToken, err := s.jwtService.CreateRefreshToken(user.UserID, time.Hour*24*7)
+	if err != nil {
+		s.logger.Error("Failed to create refresh token: " + err.Error())
+		return nil, err
+	}
+
+	err = s.stor.SaveRefreshToken(ctx, models.RefreshToken{
+		UserID:    user.UserID,
+		Token:     refreshToken,
+		IsRevoked: false,
+	})
+	if err != nil {
+		s.logger.Error("Failed to save refresh token: " + err.Error())
+		return nil, err
+	}
+
+	return &models.UserRegesred{
+		UserID:       user.UserID,
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+	}, nil
+}
+
+// RefreshToken обновляет токены доступа и обновления
+func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (*models.UserRegesred, error) {
+    // parse the token
+    claims, err := s.jwtService.ParseToken(refreshToken)
+    if err != nil {
+        s.logger.Error("Error parsing token: " + err.Error())
+        if err.Error() == "Token is expired" {
+            // delete expired token from DB
+            err = s.stor.DeleteRefreshToken(ctx, refreshToken)
+            if err != nil {
+                s.logger.Error("Failed to delete expired refresh token: " + err.Error())
+            }
+            return nil, errors.New("refresh token expired")
+        }
+        s.logger.Error("Failed to parse refresh token: " + err.Error())
+        return nil, err
+    }
+
+    if claims == nil {
+        return nil, errors.New("invalid token, claims nil")
+    }
+
+    // get user ID from token
+    userID, err := s.jwtService.UserIDFromToken(refreshToken)
+    if err != nil {
+        s.logger.Error("Failed to get user ID from token: " + err.Error())
+        return nil, err
+    }
+
+    // check if refresh token is revoked
+    refreshTokensFromDB, err := s.stor.GetRefreshTokens(ctx, userID)
+    if err != nil {
+        s.logger.Error("Failed to get refresh tokens: " + err.Error())
+        return nil, err
+    }
+
+    var validToken *models.RefreshToken
+    for _, token := range refreshTokensFromDB {
+        if token.Token == refreshToken {
+            if token.IsRevoked {
+                // delete revoked token from DB
+                err = s.stor.DeleteRefreshToken(ctx, refreshToken)
+                if err != nil {
+                    s.logger.Error("Failed to delete revoked refresh token: " + err.Error())
+                    return nil, err
+                }
+                return nil, errors.New("refresh token revoked")
+            }
+
+            validToken = &token
+            break
+        }
+    }
+
+    if validToken == nil {
+        return nil, errors.New("invalid refresh token")
+    }
+
+    // create new access token
+    accessToken, err := s.jwtService.CreateAccessToken(userID, time.Minute*60)
+    if err != nil {
+        s.logger.Error("Failed to create access token: " + err.Error())
+        return nil, err
+    }
+
+    // create new refresh token
+    newRefreshToken, err := s.jwtService.CreateRefreshToken(userID, time.Hour*24*7)
+    if err != nil {
+        s.logger.Error("Failed to create refresh token: " + err.Error())
+        return nil, err
+    }
+
+    // save new refresh token
+    err = s.stor.SaveRefreshToken(ctx, models.RefreshToken{
+        UserID:    userID,
+        Token:     newRefreshToken,
+        IsRevoked: false,
+    })
+    if err != nil {
+        s.logger.Error("Failed to save new refresh token: " + err.Error())
+        return nil, err
+    }
+
+    return &models.UserRegesred{
+        UserID:       userID,
+        AccessToken:  accessToken,
+        RefreshToken: newRefreshToken,
+    }, nil
+}
+
+// RecordData записывает данные
+func (s *Service) RecordData(ctx context.Context, userID string, data models.Data) error {
+	// check if user exists
+	_, err := s.stor.FindUser(ctx, userID)
+	if err != nil {
+		s.logger.Error("Failed to find user: " + err.Error())
+		return err
+	}
+
+	err = s.stor.SaveData(ctx, userID, data)
+	if err != nil {
+		s.logger.Error("Failed to save data: " + err.Error())
+		return err
+	}
+
+	return nil
+}
 
 // // ReadData читает данные по типу
 // func (s *Service) ReadData(ctx context.Context, userID string) ([]*pb.Data, error) {
 // 	return s.stor.ReadData(ctx, userID)
 // }
-
-func stringToUint64(s string) (uint64, error) {
-	var err error
-	var res uint64
-	res, err = strconv.ParseUint(s, 10, 64)
-	if err != nil {
-		return 0, err
-	}
-	return res, nil
-}

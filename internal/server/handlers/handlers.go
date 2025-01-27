@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"goKeeperYandex/internal/server/models"
@@ -34,8 +35,9 @@ type HandleServiceServer struct {
 type Servicer interface {
 	RegisterUser(ctx context.Context, user models.User) (*models.UserRegesred, error)
 	MasterPasswordCheckOrStore(ctx context.Context, token, masterPassword string) (bool, error)
-	// AuthenticateUser(ctx context.Context, username, password string) (bool, error)
-	// RecordData(ctx context.Context, userID string, data *pb.Data) error
+	AuthenticateUser(ctx context.Context, username, password string) (*models.UserRegesred, error)
+	RefreshToken(ctx context.Context, refreshToken string) (*models.UserRegesred, error)
+	RecordData(ctx context.Context, userID string, data models.Data) error
 	// ReadData(ctx context.Context, userID string) ([]*pb.Data, error)
 }
 
@@ -60,7 +62,7 @@ func NewHandlersService(jwtService JWTServicer, serv Servicer, log *logger.Logge
 func (s *HandleServiceServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.RegisterResponse, error) {
 	// Логика регистрации пользователя
 	user := models.User{
-		Username: req.Username,
+		Username:     req.Username,
 		PasswordHash: req.Password,
 	}
 
@@ -134,62 +136,72 @@ func (s *HandleServiceServer) MasterPasswordCheckOrStore(ctx context.Context, re
 	}, nil
 }
 
-// // Login method
-// func (s *HandleServiceServer) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResponse, error) {
-// 	log.Println("Login handle called!")
+// Login method
+func (s *HandleServiceServer) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResponse, error) {
+	s.logger.Info("Login handle called!")
 
-// 	isUser, err := s.serv.AuthenticateUser(ctx, req.Username, req.Password)
-// 	if err != nil {
-// 		return nil, status.Errorf(codes.Unauthenticated, "invalid credentials")
-// 	}
+	userAfterLogin, err := s.serv.AuthenticateUser(ctx, req.Username, req.Password)
+	if err != nil {
+		return nil, status.Errorf(codes.Unauthenticated, "invalid credentials")
+	}
 
-// 	if !isUser {
-// 		return nil, status.Errorf(codes.Unauthenticated, "invalid credentials")
-// 	}
+	return &pb.LoginResponse{Token: userAfterLogin.AccessToken, RefreshToken: userAfterLogin.RefreshToken}, nil
+}
 
-// 	accessToken, err := s.jwtService.CreateAccessToken(req.Username, time.Minute*60)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+// RefreshToken method
+func (s *HandleServiceServer) RefreshToken(ctx context.Context, req *pb.RefreshTokenRequest) (*pb.RefreshTokenResponse, error) {
+	s.logger.Info("RefreshToken handle called!")
 
-// 	refreshToken, err := s.jwtService.CreateRefreshToken(req.Username, time.Hour*24*7)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	userAfterRefresh, err := s.serv.RefreshToken(ctx, req.RefreshToken)
+	if err != nil {
+		if err.Error() == "refresh token expired" {
+			s.logger.Error("Refresh token expired: " + err.Error())
+			return nil, status.Errorf(codes.Unauthenticated, "refresh token expired")
+		}
+		s.logger.Error("Failed to refresh token: " + err.Error())
+		return nil, status.Errorf(codes.Unauthenticated, "invalid token")
+	}
 
-// 	return &pb.LoginResponse{Token: accessToken, RefreshToken: refreshToken}, nil
-// }
+	return &pb.RefreshTokenResponse{
+		Token:        userAfterRefresh.AccessToken,
+		RefreshToken: userAfterRefresh.RefreshToken,
+	}, nil
+}
 
-// // RefreshToken method
-// func (s *HandleServiceServer) RefreshToken(ctx context.Context, req *pb.RefreshTokenRequest) (*pb.RefreshTokenResponse, error) {
-// 	log.Println("RefreshToken handle called!")
+// SendDataToServer method
+func (s *HandleServiceServer) SendDataToServer(ctx context.Context, req *pb.SendDataRequest) (*pb.SendDataResponse, error) {
+	s.logger.Info("SendData handle called!")
 
-// 	claims, err := s.jwtService.ParseToken(req.RefreshToken)
-// 	if err != nil {
-// 		return nil, status.Errorf(codes.Unauthenticated, "invalid refresh token")
-// 	}
+	claims, err := s.jwtService.ParseToken(req.Token)
+	if err != nil {
+		return nil, status.Errorf(codes.Unauthenticated, "invalid token")
+	}
 
-// 	userID, ok := claims["user_id"].(string)
-// 	if !ok {
-// 		return nil, status.Errorf(codes.Unauthenticated, "invalid token claims")
-// 	}
+	userID, ok := claims["user_id"].(string)
+	if !ok {
+		s.logger.Error("Invalid token claims")
+		return nil, status.Errorf(codes.Unauthenticated, "invalid token claims")
+	}
 
-// 	accessToken, err := s.jwtService.CreateAccessToken(userID, time.Minute*60)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	// Перемещаем логику извлечения данных на уровень сервиса
+	data, err := extractData(req.Data)
+	if err != nil {
+		s.logger.Error("Failed to extract data: " + err.Error())
+		return nil, status.Errorf(codes.InvalidArgument, "failed to extract data")
+	}
 
-// 	refreshToken, err := s.jwtService.CreateRefreshToken(userID, time.Hour*24*7)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	err = s.serv.RecordData(ctx, userID, data)
+	if err != nil {
+		s.logger.Error("Failed to record data: " + err.Error())
+		return nil, status.Errorf(codes.Internal, "failed to record data")
+	}
 
-// 	return &pb.RefreshTokenResponse{Token: accessToken, RefreshToken: refreshToken}, nil
-// }
+	return &pb.SendDataResponse{Success: true}, nil
+}
 
-// // SendData method
-// func (s *HandleServiceServer) SendData(ctx context.Context, req *pb.SendDataRequest) (*pb.SendDataResponse, error) {
-// 	log.Println("SendData handle called!")
+// // SendDataToServer method
+// func (s *HandleServiceServer) SendDataToServer(ctx context.Context, req *pb.SendDataRequest) (*pb.SendDataResponse, error) {
+// 	s.logger.Info("SendData handle called!")
 
 // 	claims, err := s.jwtService.ParseToken(req.Token)
 // 	if err != nil {
@@ -198,11 +210,43 @@ func (s *HandleServiceServer) MasterPasswordCheckOrStore(ctx context.Context, re
 
 // 	userID, ok := claims["user_id"].(string)
 // 	if !ok {
+// 		s.logger.Error("Invalid token claims: " + err.Error())
 // 		return nil, status.Errorf(codes.Unauthenticated, "invalid token claims")
 // 	}
 
-// 	err = s.serv.RecordData(ctx, userID, req.Data)
+// 	// Извлекаем данные из запроса и сохраняем их в структуру Data
+// 	var data models.Data
+// 	switch req.Data.DataType {
+// 	case pb.DataType_LOGIN_PASSWORD:
+// 		loginPassword := models.LoginPassword{
+// 			Username: req.Data.GetLoginPassword().Login,
+// 			Password: req.Data.GetLoginPassword().Password,
+// 		}
+// 		data = models.NewData(models.DataTypeLOGIN, loginPassword)
+// 	case pb.DataType_TEXT_NOTE:
+// 		textNote := models.TextNote{
+// 			Content: req.Data.GetTextNote().Text,
+// 		}
+// 		data = models.NewData(models.DataTypeNOTE, textNote)
+// 	case pb.DataType_BINARY_DATA:
+// 		binaryData := models.BinaryData{
+// 			Data:     req.Data.GetBinaryData().Data,
+// 		}
+// 		data = models.NewData(models.DataTypeBINARY, binaryData)
+// 	case pb.DataType_BANK_CARD:
+// 		bankCard := models.BankCard{
+// 			CardNumber: req.Data.GetBankCard().CardNumber,
+// 			ExpiryDate: req.Data.GetBankCard().ExpiryDate,
+// 			CVV:        req.Data.GetBankCard().Cvv,
+// 		}
+// 		data = models.NewData(models.DataTypeCARD, bankCard)
+// 	default:
+// 		return nil, status.Errorf(codes.InvalidArgument, "unknown data type")
+// 	}
+
+// 	err = s.serv.RecordData(ctx, userID, data)
 // 	if err != nil {
+// 		s.logger.Error("Failed to record data: " + err.Error())
 // 		return nil, status.Errorf(codes.Internal, "failed to record data")
 // 	}
 
@@ -230,3 +274,19 @@ func (s *HandleServiceServer) MasterPasswordCheckOrStore(ctx context.Context, re
 
 // 	return &pb.ReceiveDataResponse{Data: data}, nil
 // }
+
+// extractData function
+func extractData(data *pb.Data) (models.Data, error) {
+	switch data.DataType {
+	case pb.DataType_LOGIN_PASSWORD:
+		return models.NewData(models.DataTypeLoginPassword, data.GetLoginPassword())
+	case pb.DataType_TEXT_NOTE:
+		return models.NewData(models.DataTypeTextNote, data.GetTextNote())
+	case pb.DataType_BINARY_DATA:
+		return models.NewData(models.DataTypeBinaryData, data.GetBinaryData())
+	case pb.DataType_BANK_CARD:
+		return models.NewData(models.DataTypeBankCard, data.GetBankCard())
+	default:
+		return models.Data{}, errors.New("unsupported data type")
+	}
+}

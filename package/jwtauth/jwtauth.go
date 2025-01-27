@@ -72,6 +72,12 @@ func (s *JWTService) ParseToken(tokenString string) (jwt.MapClaims, error) {
 		return []byte(s.secretKey), nil
 	})
 	if err != nil {
+		if ve, ok := err.(*jwt.ValidationError); ok && ve.Errors == jwt.ValidationErrorExpired {
+			if claims, ok := token.Claims.(jwt.MapClaims); ok {
+				return claims, errors.New("Token is expired")
+			}
+		}
+
 		return nil, err
 	}
 

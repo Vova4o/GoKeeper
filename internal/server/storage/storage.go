@@ -3,10 +3,12 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"errors"
 
 	"goKeeperYandex/internal/server/models"
 	"goKeeperYandex/package/logger"
 
+	// Используем драйвер для PostgreSQL
 	_ "github.com/lib/pq"
 )
 
@@ -63,25 +65,61 @@ func (s *Storage) SaveRefreshToken(ctx context.Context, token models.RefreshToke
 	return nil
 }
 
-// AuthenticateUser аутентифицирует пользователя
-func (s *Storage) AuthenticateUser(ctx context.Context, username, password string) (bool, error) {
-	query := `SELECT password_hash FROM users WHERE username = $1`
-	var passwordHash string
-	err := s.db.QueryRowContext(ctx, query, username).Scan(&passwordHash)
+// DeleteRefreshToken удаляет refresh токен
+func (s *Storage) DeleteRefreshToken(ctx context.Context, token string) error {
+	query := `DELETE FROM refresh_tokens WHERE token = $1`
+	_, err := s.db.ExecContext(ctx, query, token)
+	if err != nil {
+		s.logger.Error("Failed to delete refresh token")
+		return err
+	}
+
+	s.logger.Info("Refresh token deleted successfully")
+	return nil
+}
+
+// GetRefreshTokens возвращает все refresh токены пользователя по его ID из базы данных
+func (s *Storage) GetRefreshTokens(ctx context.Context, userID int) ([]models.RefreshToken, error) {
+	query := `SELECT token, is_revoked FROM refresh_tokens WHERE user_id = $1`
+	rows, err := s.db.QueryContext(ctx, query, userID)
+	if err != nil {
+		s.logger.Error("Failed to get refresh tokens")
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tokens []models.RefreshToken
+	for rows.Next() {
+		var token models.RefreshToken
+		if err := rows.Scan(&token.Token, &token.IsRevoked); err != nil {
+			s.logger.Error("Failed to scan refresh token")
+			return nil, err
+		}
+		tokens = append(tokens, token)
+	}
+
+	if err := rows.Err(); err != nil {
+		s.logger.Error("Failed to iterate over refresh tokens")
+		return nil, err
+	}
+
+	return tokens, nil
+}
+
+// FindUser ищет пользователя
+func (s *Storage) FindUser(ctx context.Context, username string) (*models.User, error) {
+	query := `SELECT id, password_hash FROM users WHERE username = $1`
+	user := &models.User{}
+	err := s.db.QueryRowContext(ctx, query, username).Scan(&user.UserID, &user.PasswordHash)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return false, nil
+			return nil, nil
 		}
-		s.logger.Error("Failed to authenticate user")
-		return false, err
+		s.logger.Error("Failed to find user")
+		return nil, err
 	}
 
-	if passwordHash != password {
-		s.logger.Info("Password is incorrect")
-		return false, nil
-	}
-
-	return true, nil
+	return user, nil
 }
 
 // CheckMasterPassword проверяет мастер-пароль
@@ -110,6 +148,74 @@ func (s *Storage) StoreMasterPassword(ctx context.Context, userID int, masterPas
 	}
 
 	s.logger.Info("Master password stored successfully")
+	return nil
+}
+
+// SaveData сохраняет данные в базу данных в зависимости от типа
+func (s *Storage) SaveData(ctx context.Context, userID string, data models.Data) error {
+	switch data.DataType {
+	case models.DataTypeLoginPassword:
+		return s.SaveLoginPassword(ctx, userID, *data.LoginPassword)
+	case models.DataTypeTextNote:
+		return s.SaveTextNote(ctx, userID, *data.TextNote)
+	case models.DataTypeBinaryData:
+		return s.SaveBinaryData(ctx, userID, *data.BinaryData)
+	case models.DataTypeBankCard:
+		return s.SaveBankCard(ctx, userID, *data.BankCard)
+	default:
+		return errors.New("invalid data type")
+	}
+}
+
+// SaveLoginPassword сохраняет логин и пароль
+func (s *Storage) SaveLoginPassword(ctx context.Context, userID string, loginPassword models.LoginPassword) error {
+	query := `UPDATE private_data SET username = $1, password = $2 WHERE user_id = $3 AND data_type = $4`
+	_, err := s.db.ExecContext(ctx, query, loginPassword.Username, loginPassword.Password, userID, models.DataTypeLoginPassword)
+	if err != nil {
+		s.logger.Error("Failed to save login password")
+		return err
+	}
+
+	s.logger.Info("Login password saved successfully")
+	return nil
+}
+
+// SaveTextNote сохраняет текстовую заметку
+func (s *Storage) SaveTextNote(ctx context.Context, userID string, textNote models.TextNote) error {
+	query := `UPDATE private_data SET title = $1, content = $2 WHERE user_id = $3 AND data_type = $4`
+	_, err := s.db.ExecContext(ctx, query, textNote.Title, textNote.Content, userID, models.DataTypeTextNote)
+	if err != nil {
+		s.logger.Error("Failed to save text note")
+		return err
+	}
+
+	s.logger.Info("Text note saved successfully")
+	return nil
+}
+
+// SaveBinaryData сохраняет бинарные данные
+func (s *Storage) SaveBinaryData(ctx context.Context, userID string, binaryData models.BinaryData) error {
+	query := `UPDATE private_data SET filename = $1, data = $2 WHERE user_id = $3 AND data_type = $4`
+	_, err := s.db.ExecContext(ctx, query, binaryData.Filename, binaryData.Data, userID, models.DataTypeBinaryData)
+	if err != nil {
+		s.logger.Error("Failed to save binary data")
+		return err
+	}
+
+	s.logger.Info("Binary data saved successfully")
+	return nil
+}
+
+// SaveBankCard сохраняет банковскую карту
+func (s *Storage) SaveBankCard(ctx context.Context, userID string, bankCard models.BankCard) error {
+	query := `UPDATE private_data SET card_number = $1, expiry_date = $2, cvv = $3 WHERE user_id = $4 AND data_type = $5`
+	_, err := s.db.ExecContext(ctx, query, bankCard.CardNumber, bankCard.ExpiryDate, bankCard.CVV, userID, models.DataTypeBankCard)
+	if err != nil {
+		s.logger.Error("Failed to save bank card")
+		return err
+	}
+
+	s.logger.Info("Bank card saved successfully")
 	return nil
 }
 

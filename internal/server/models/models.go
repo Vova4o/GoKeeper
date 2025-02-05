@@ -73,6 +73,7 @@ type Data struct {
 
 // LoginPassword модель для хранения логина и пароля
 type LoginPassword struct {
+	Title    string
 	Username string
 	Password string
 }

@@ -177,8 +177,8 @@ func (s *HandleServiceServer) RefreshToken(ctx context.Context, req *pb.RefreshT
 	}, nil
 }
 
-// SendDataToServer method for storing data in database
-func (s *HandleServiceServer) SendDataToServer(ctx context.Context, req *pb.SendDataRequest) (*pb.SendDataResponse, error) {
+// SendData method for storing data in database
+func (s *HandleServiceServer) SendData(ctx context.Context, req *pb.SendDataRequest) (*pb.SendDataResponse, error) {
 	s.logger.Info("SendData handle called!")
 
 	userID, ok := ctx.Value(models.UserIDKey).(int)
@@ -270,18 +270,52 @@ func convertToPBData(data *models.Data) (*pb.Data, error) {
 	return pbData, nil
 }
 
-// extractData function for extracting data from pb.Data
-func extractData(data *pb.Data) (models.Data, error) {
-	switch data.DataType {
+// extractData извлекает данные из protobuf сообщения и преобразует их в модель
+func extractData(pbData *pb.Data) (models.Data, error) {
+	var data models.Data
+
+	switch pbData.DataType {
 	case pb.DataType_LOGIN_PASSWORD:
-		return models.NewData(models.DataTypeLoginPassword, data.GetLoginPassword())
+		lp := pbData.GetLoginPassword()
+		data = models.Data{
+			DataType: models.DataTypeLoginPassword,
+			LoginPassword: &models.LoginPassword{
+				Title:    lp.Title,
+				Username: lp.Login,
+				Password: lp.Password,
+			},
+		}
 	case pb.DataType_TEXT_NOTE:
-		return models.NewData(models.DataTypeTextNote, data.GetTextNote())
+		tn := pbData.GetTextNote()
+		data = models.Data{
+			DataType: models.DataTypeTextNote,
+			TextNote: &models.TextNote{
+				Title:   tn.Title,
+				Content: tn.Text,
+			},
+		}
 	case pb.DataType_BINARY_DATA:
-		return models.NewData(models.DataTypeBinaryData, data.GetBinaryData())
+		bd := pbData.GetBinaryData()
+		data = models.Data{
+			DataType: models.DataTypeBinaryData,
+			BinaryData: &models.BinaryData{
+				Filename: bd.Title,
+				Data:     bd.Data,
+			},
+		}
 	case pb.DataType_BANK_CARD:
-		return models.NewData(models.DataTypeBankCard, data.GetBankCard())
+		bc := pbData.GetBankCard()
+		data = models.Data{
+			DataType: models.DataTypeBankCard,
+			BankCard: &models.BankCard{
+				CardNumber: bc.CardNumber,
+				ExpiryDate: bc.ExpiryDate,
+				CVV:        bc.Cvv,
+			},
+		}
 	default:
 		return models.Data{}, errors.New("unsupported data type")
 	}
+
+	return data, nil
 }

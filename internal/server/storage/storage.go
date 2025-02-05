@@ -189,7 +189,7 @@ func (s *Storage) SaveData(ctx context.Context, userID int, data models.Data) er
 
 // SaveLoginPassword сохраняет логин и пароль
 func (s *Storage) SaveLoginPassword(ctx context.Context, userID int, loginPassword models.LoginPassword) error {
-	query := `UPDATE private_data SET username = $1, password = $2 WHERE user_id = $3 AND data_type = $4`
+	query := `UPDATE private_infos SET username = $1, password = $2 WHERE user_id = $3 AND data_type = $4`
 	_, err := s.db.ExecContext(ctx, query, loginPassword.Username, loginPassword.Password, userID, models.DataTypeLoginPassword)
 	if err != nil {
 		s.logger.Error("Failed to save login password")
@@ -202,7 +202,7 @@ func (s *Storage) SaveLoginPassword(ctx context.Context, userID int, loginPasswo
 
 // SaveTextNote сохраняет текстовую заметку
 func (s *Storage) SaveTextNote(ctx context.Context, userID int, textNote models.TextNote) error {
-	query := `UPDATE private_data SET title = $1, content = $2 WHERE user_id = $3 AND data_type = $4`
+	query := `UPDATE private_infos SET title = $1, content = $2 WHERE user_id = $3 AND data_type = $4`
 	_, err := s.db.ExecContext(ctx, query, textNote.Title, textNote.Content, userID, models.DataTypeTextNote)
 	if err != nil {
 		s.logger.Error("Failed to save text note")
@@ -215,7 +215,7 @@ func (s *Storage) SaveTextNote(ctx context.Context, userID int, textNote models.
 
 // SaveBinaryData сохраняет бинарные данные
 func (s *Storage) SaveBinaryData(ctx context.Context, userID int, binaryData models.BinaryData) error {
-	query := `UPDATE private_data SET filename = $1, data = $2 WHERE user_id = $3 AND data_type = $4`
+	query := `UPDATE private_infos SET filename = $1, data = $2 WHERE user_id = $3 AND data_type = $4`
 	_, err := s.db.ExecContext(ctx, query, binaryData.Filename, binaryData.Data, userID, models.DataTypeBinaryData)
 	if err != nil {
 		s.logger.Error("Failed to save binary data")
@@ -228,7 +228,7 @@ func (s *Storage) SaveBinaryData(ctx context.Context, userID int, binaryData mod
 
 // SaveBankCard сохраняет банковскую карту
 func (s *Storage) SaveBankCard(ctx context.Context, userID int, bankCard models.BankCard) error {
-	query := `UPDATE private_data SET card_number = $1, expiry_date = $2, cvv = $3 WHERE user_id = $4 AND data_type = $5`
+	query := `UPDATE private_infos SET card_number = $1, expiry_date = $2, cvv = $3 WHERE user_id = $4 AND data_type = $5`
 	_, err := s.db.ExecContext(ctx, query, bankCard.CardNumber, bankCard.ExpiryDate, bankCard.CVV, userID, models.DataTypeBankCard)
 	if err != nil {
 		s.logger.Error("Failed to save bank card")
@@ -241,7 +241,7 @@ func (s *Storage) SaveBankCard(ctx context.Context, userID int, bankCard models.
 
 // ReadData читает данные по типу
 func (s *Storage) ReadData(ctx context.Context, userID int) ([]*models.Data, error) {
-	query := `SELECT data_type, login, password, title, content, filename, data, card_number, expiry_date, cvv FROM private_data WHERE user_id = $1`
+	query := `SELECT data_type, login, password, title, content, filename, data, card_number, expiry_date, cvv FROM private_infos WHERE user_id = $1`
 	rows, err := s.db.QueryContext(ctx, query, userID)
 	if err != nil {
 		s.logger.Error("Failed to read data: " + err.Error())

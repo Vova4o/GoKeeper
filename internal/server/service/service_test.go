@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"google.golang.org/grpc/metadata"
 )
 
 type MockStorager struct {
@@ -26,6 +27,22 @@ func (m *MockStorager) CreateUser(ctx context.Context, user models.User) (int, e
 func (m *MockStorager) SaveRefreshToken(ctx context.Context, userRefresh models.RefreshToken) error {
 	args := m.Called(ctx, userRefresh)
 	return args.Error(0)
+}
+
+func (m *MockStorager) FindUserByID(ctx context.Context, userID int) (*models.User, error) {
+	args := m.Called(ctx, userID)
+	if user, ok := args.Get(0).(*models.User); ok {
+		return user, args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockStorager) FindUserByName(ctx context.Context, username string) (*models.User, error) {
+	args := m.Called(ctx, username)
+	if user, ok := args.Get(0).(*models.User); ok {
+		return user, args.Error(1)
+	}
+	return nil, args.Error(1)
 }
 
 func (m *MockStorager) CheckMasterPassword(ctx context.Context, userID int) (string, error) {
@@ -46,17 +63,25 @@ func (m *MockStorager) GetRefreshTokens(ctx context.Context, userID int) ([]mode
 	return nil, args.Error(1)
 }
 
+func (m *MockStorager) GetRefreshToken(ctx context.Context, token string) (models.RefreshToken, error) {
+	args := m.Called(ctx, token)
+	if token, ok := args.Get(0).(models.RefreshToken); ok {
+		return token, args.Error(1)
+	}
+	return models.RefreshToken{}, args.Error(1)
+}
+
 func (m *MockStorager) DeleteRefreshToken(ctx context.Context, token string) error {
 	args := m.Called(ctx, token)
 	return args.Error(0)
 }
 
-func (m *MockStorager) SaveData(ctx context.Context, userID string, data models.Data) error {
+func (m *MockStorager) SaveData(ctx context.Context, userID int, data models.Data) error {
 	args := m.Called(ctx, userID, data)
 	return args.Error(0)
 }
 
-func (m *MockStorager) ReadData(ctx context.Context, userID string) ([]*models.Data, error) {
+func (m *MockStorager) ReadData(ctx context.Context, userID int) ([]*models.Data, error) {
 	args := m.Called(ctx, userID)
 	if data, ok := args.Get(0).([]*models.Data); ok {
 		return data, args.Error(1)
@@ -110,10 +135,13 @@ func TestMasterPasswordCheckOrStore(t *testing.T) {
 	token, _ := jwtService.CreateAccessToken(1, time.Minute*60)
 	masterPassword := "masterpassword"
 
+	md := metadata.New(map[string]string{"authorization": token})
+	ctx := metadata.NewOutgoingContext(context.Background(), md)
+
 	mockStorager.On("CheckMasterPassword", mock.Anything, mock.Anything).Return("", errors.New("record not found"))
 	mockStorager.On("StoreMasterPassword", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
-	result, err := service.MasterPasswordCheckOrStore(context.Background(), token, masterPassword)
+	result, err := service.MasterPasswordCheckOrStore(ctx, masterPassword)
 	assert.NoError(t, err)
 	assert.True(t, result)
 	mockStorager.AssertExpectations(t)

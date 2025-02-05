@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"context"
+	"fmt"
+	"log"
 	"time"
 
 	"goKeeperYandex/internal/client/models"
@@ -99,6 +101,7 @@ func (c *GRPCClient) Login(ctx context.Context, reg models.RegisterAndLogin) err
 	}
 
 	c.AccessToken = res.Token
+	c.log.Info("Access token:" + c.AccessToken)
 	err = c.serv.AddOrReplaceRefreshToken(ctx, res.RefreshToken)
 	if err != nil {
 		c.log.Error("Error saving refresh token")
@@ -146,55 +149,69 @@ func (c *GRPCClient) RefreshToken(ctx context.Context) error {
 func (c *GRPCClient) CheckAndRefreshToken(ctx context.Context) error {
 	c.log.Info("CheckAndRefreshToken called!")
 
-	// Проверка срока действия AccessToken
-	token, err := jwt.Parse(c.AccessToken, nil)
+	c.log.Info("Access token in CheckAndRefresh:" + c.AccessToken)
+
+	// Парсинг токена без проверки подписи
+	token, _, err := new(jwt.Parser).ParseUnverified(c.AccessToken, jwt.MapClaims{})
 	if err != nil {
+		c.log.Error("Error parsing token")
 		return status.Errorf(codes.Unauthenticated, "invalid access token")
 	}
 
+	// Извлечение утверждений (claims)
 	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok || !token.Valid {
+	if !ok {
+		c.log.Error("Invalid token claims")
 		return status.Errorf(codes.Unauthenticated, "invalid access token")
 	}
 
+	// Проверка времени истечения токена
 	exp, ok := claims["exp"].(float64)
 	if !ok {
+		c.log.Error("Expiration time (exp) not found in token")
 		return status.Errorf(codes.Unauthenticated, "invalid access token")
 	}
 
-	if exp > float64(time.Now().Unix()) {
+	expirationTime := time.Unix(int64(exp), 0)
+	if time.Now().After(expirationTime) {
+		c.log.Info("Access token expired, refreshing...")
+
+		// Токен истек, обновляем его
+		refreshToken, err := c.serv.GetRefreshToken(ctx)
+		if err != nil {
+			return status.Errorf(codes.Unauthenticated, "failed to get refresh token: %v", err)
+		}
+
+		if refreshToken == "" {
+			return status.Errorf(codes.Unauthenticated, "refresh token not found")
+		}
+
+		refreshReq := &pb.RefreshTokenRequest{
+			RefreshToken: refreshToken,
+		}
+
+		refreshResp, err := c.client.RefreshToken(ctx, refreshReq)
+		if err != nil {
+			return status.Errorf(codes.Unauthenticated, "failed to refresh token: %v", err)
+		}
+
+		c.log.Info("Refresh token refreshed successfully: " + refreshResp.Token)
+
+		// Обновляем AccessToken и RefreshToken
+		c.AccessToken = refreshResp.Token
+		err = c.serv.AddOrReplaceRefreshToken(ctx, refreshResp.RefreshToken)
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to save refresh token: %v", err)
+		}
+
+		c.log.Info("Access token refreshed successfully")
+	} else {
 		// Токен действителен, продолжаем выполнение
-		return nil
+		timeRemaining := time.Until(expirationTime)
+		timeString := fmt.Sprintf("Access token is valid. Time remaining: %v", timeRemaining)
+		c.log.Info(timeString)
 	}
 
-	// Токен истек, обновляем его
-	c.log.Info("Access token expired, refreshing...")
-
-	refreshToken, err := c.serv.GetRefreshToken(ctx)
-	if err != nil {
-		return status.Errorf(codes.Unauthenticated, "failed to get refresh token: %v", err)
-	}
-
-	if refreshToken == "" {
-		return status.Errorf(codes.Unauthenticated, "refresh token not found")
-	}
-
-	refreshReq := &pb.RefreshTokenRequest{
-		RefreshToken: refreshToken,
-	}
-
-	refreshResp, err := c.client.RefreshToken(ctx, refreshReq)
-	if err != nil {
-		return status.Errorf(codes.Unauthenticated, "failed to refresh token: %v", err)
-	}
-
-	c.log.Info("Refresh token refreshed successfully:" + refreshResp.Token)
-
-	// Обновляем AccessToken и RefreshToken
-	c.AccessToken = refreshResp.Token
-	c.serv.AddOrReplaceRefreshToken(ctx, refreshResp.RefreshToken)
-
-	c.log.Info("Access token refreshed successfully")
 	return nil
 }
 
@@ -206,7 +223,13 @@ func (c *GRPCClient) MasterPasswordStoreOrCheck(ctx context.Context, masterPassw
 
 	c.log.Info("MasterPasswordStoreOrCheck called!")
 
-	c.CheckAndRefreshToken(ctx)
+	err := c.CheckAndRefreshToken(ctx)
+	if err != nil {
+		c.log.Error("Error refreshing token")
+		return false, err
+	}
+
+	log.Println("AccessToken:", c.AccessToken)
 
 	// Добавление токена в метаданные
 	md := metadata.New(map[string]string{"authorization": c.AccessToken})
@@ -214,6 +237,7 @@ func (c *GRPCClient) MasterPasswordStoreOrCheck(ctx context.Context, masterPassw
 
 	res, err := c.client.MasterPassword(ctx, &pb.MasterPasswordRequest{MasterPassword: masterPassword})
 	if err != nil {
+		c.log.Error("Error storing master password in server")
 		return false, err
 	}
 
@@ -230,7 +254,10 @@ func (c *GRPCClient) AddDataToServer(ctx context.Context, data models.Data) erro
 
 	pbData := convertDataToPBDatas(data)
 
-	c.CheckAndRefreshToken(ctx)
+	err := c.CheckAndRefreshToken(ctx)
+	if err != nil {
+		return err
+	}
 
 	// Добавление токена в метаданные
 	md := metadata.New(map[string]string{"authorization": c.AccessToken})
@@ -340,72 +367,72 @@ func convertDataToPBDatas(d models.Data) *pb.Data {
 }
 
 func convertPBToData(pbd *pb.Data) models.Data {
-    if pbd == nil {
-        return models.Data{}
-    }
+	if pbd == nil {
+		return models.Data{}
+	}
 
-    var result models.Data
+	var result models.Data
 
-    switch pbd.DataType {
-    case pb.DataType_LOGIN_PASSWORD:
-        lp := pbd.GetLoginPassword()
-        if lp == nil {
-            return models.Data{}
-        }
-        result = models.Data{
-            DataType: models.DataTypeLoginPassword,
-            Data: models.LoginPassword{
-                Title:    lp.Title,
-                Login:    lp.Login,
-                Password: lp.Password,
-            },
-        }
+	switch pbd.DataType {
+	case pb.DataType_LOGIN_PASSWORD:
+		lp := pbd.GetLoginPassword()
+		if lp == nil {
+			return models.Data{}
+		}
+		result = models.Data{
+			DataType: models.DataTypeLoginPassword,
+			Data: models.LoginPassword{
+				Title:    lp.Title,
+				Login:    lp.Login,
+				Password: lp.Password,
+			},
+		}
 
-    case pb.DataType_TEXT_NOTE:
-        tn := pbd.GetTextNote()
-        if tn == nil {
-            return models.Data{}
-        }
-        result = models.Data{
-            DataType: models.DataTypeTextNote,
-            Data: models.TextNote{
-                Title: tn.Title,
-                Text:  tn.Text,
-            },
-        }
+	case pb.DataType_TEXT_NOTE:
+		tn := pbd.GetTextNote()
+		if tn == nil {
+			return models.Data{}
+		}
+		result = models.Data{
+			DataType: models.DataTypeTextNote,
+			Data: models.TextNote{
+				Title: tn.Title,
+				Text:  tn.Text,
+			},
+		}
 
-    case pb.DataType_BINARY_DATA:
-        bd := pbd.GetBinaryData()
-        if bd == nil {
-            return models.Data{}
-        }
-        result = models.Data{
-            DataType: models.DataTypeBinaryData,
-            Data: models.BinaryData{
-                Title: bd.Title,
-                Data:  bd.Data,
-            },
-        }
+	case pb.DataType_BINARY_DATA:
+		bd := pbd.GetBinaryData()
+		if bd == nil {
+			return models.Data{}
+		}
+		result = models.Data{
+			DataType: models.DataTypeBinaryData,
+			Data: models.BinaryData{
+				Title: bd.Title,
+				Data:  bd.Data,
+			},
+		}
 
-    case pb.DataType_BANK_CARD:
-        bc := pbd.GetBankCard()
-        if bc == nil {
-            return models.Data{}
-        }
-        result = models.Data{
-            DataType: models.DataTypeBankCard,
-            Data: models.BankCard{
-                Title:      bc.Title,
-                CardNumber: bc.CardNumber,
-                ExpiryDate: bc.ExpiryDate,
-                Cvv:        bc.Cvv,
-            },
-        }
+	case pb.DataType_BANK_CARD:
+		bc := pbd.GetBankCard()
+		if bc == nil {
+			return models.Data{}
+		}
+		result = models.Data{
+			DataType: models.DataTypeBankCard,
+			Data: models.BankCard{
+				Title:      bc.Title,
+				CardNumber: bc.CardNumber,
+				ExpiryDate: bc.ExpiryDate,
+				Cvv:        bc.Cvv,
+			},
+		}
 
-    default:
-        // Неизвестный тип данных
-        return models.Data{}
-    }
+	default:
+		// Неизвестный тип данных
+		return models.Data{}
+	}
 
-    return result
+	return result
 }

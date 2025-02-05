@@ -106,6 +106,8 @@ func (s *HandleServiceServer) AuthFuncOverride(ctx context.Context, req interfac
 		return nil, status.Errorf(codes.Unauthenticated, "missing token")
 	}
 
+	s.logger.Info("Auth Handle Token: " + token[0])
+
 	_, err := s.jwtService.ParseToken(token[0])
 	if err != nil {
 		s.logger.Error("Failed to parse token: " + err.Error())

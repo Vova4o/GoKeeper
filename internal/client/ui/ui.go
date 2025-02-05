@@ -249,7 +249,7 @@ func (u *UI) openAddBankCardWindow() {
 
     saveButton := widget.NewButton("Сохранить", func() {
         u.logger.Info("Сохраняем карту: " + titleEntry.Text)
-        u.handler.AddDataToServer(u.ctx, models.Data{
+        err := u.handler.AddDataToServer(u.ctx, models.Data{
 			DataType: models.DataTypeBankCard,
 			Data: models.BankCard{
 				Title:      titleEntry.Text,
@@ -258,6 +258,10 @@ func (u *UI) openAddBankCardWindow() {
 				Cvv:        cvvEntry.Text,
 			},
 		})
+		if err != nil {
+			log.Println("Failed to add bank card:", err)
+			u.showMainWindow(fyne.CurrentApp())
+		}
         newWindow.Close()
     })
 

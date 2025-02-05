@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"errors"
+	"strconv"
 	"time"
 
 	"goKeeperYandex/internal/server/models"
@@ -34,11 +35,11 @@ type HandleServiceServer struct {
 // Servicer interface
 type Servicer interface {
 	RegisterUser(ctx context.Context, user models.User) (*models.UserRegesred, error)
-	MasterPasswordCheckOrStore(ctx context.Context, token, masterPassword string) (bool, error)
+	MasterPasswordCheckOrStore(ctx context.Context, masterPassword string) (bool, error)
 	AuthenticateUser(ctx context.Context, username, password string) (*models.UserRegesred, error)
 	RefreshToken(ctx context.Context, refreshToken string) (*models.UserRegesred, error)
-	RecordData(ctx context.Context, userID string, data models.Data) error
-	ReadData(ctx context.Context, userID string) ([]*models.Data, error)
+	RecordData(ctx context.Context, userID int, data models.Data) error
+	ReadData(ctx context.Context, userID int) ([]*models.Data, error)
 }
 
 // JWTServicer interface for JWT service methods
@@ -46,6 +47,7 @@ type JWTServicer interface {
 	CreateAccessToken(userID int, duration time.Duration) (string, error)
 	CreateRefreshToken(userID int, duration time.Duration) (string, error)
 	ParseToken(tokenString string) (jwt.MapClaims, error)
+	UserIDFromToken(tokenString string) (int, error)
 }
 
 // NewHandlersService function
@@ -86,44 +88,49 @@ func (s *HandleServiceServer) Register(ctx context.Context, req *pb.RegisterRequ
 
 // AuthFuncOverride method
 func (s *HandleServiceServer) AuthFuncOverride(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	s.logger.Info("AuthFuncOverride handle called!")
+
 	if info.FullMethod == "/auth.AuthService/Login" || info.FullMethod == "/auth.AuthService/Register" {
 		return handler(ctx, req)
 	}
 
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
+		s.logger.Error("Missing metadata")
 		return nil, status.Errorf(codes.Unauthenticated, "missing metadata")
 	}
 
 	token := md["authorization"]
 	if len(token) == 0 {
+		s.logger.Error("Missing token length 0")
 		return nil, status.Errorf(codes.Unauthenticated, "missing token")
 	}
 
-	claims := &Claims{}
-	tkn, err := jwt.ParseWithClaims(token[0], claims, func(token *jwt.Token) (interface{}, error) {
-		return s.jwtKey, nil
-	})
+	_, err := s.jwtService.ParseToken(token[0])
 	if err != nil {
-		if err == jwt.ErrSignatureInvalid {
-			return nil, status.Errorf(codes.Unauthenticated, "invalid token signature")
-		}
+		s.logger.Error("Failed to parse token: " + err.Error())
 		return nil, status.Errorf(codes.Unauthenticated, "invalid token")
 	}
 
-	if !tkn.Valid {
-		return nil, status.Errorf(codes.Unauthenticated, "invalid token")
+	userID, err := s.jwtService.UserIDFromToken(token[0])
+	if err != nil {
+		s.logger.Error("Failed to get user ID from token: " + err.Error())
+		return nil, status.Errorf(codes.Unauthenticated, "invalid token userID")
 	}
+
+	s.logger.Info("Auth Handle User ID from token: " + strconv.Itoa(userID))
+
+	ctx = context.WithValue(ctx, models.UserIDKey, userID)
 
 	return handler(ctx, req)
 }
 
-// MasterPasswordCheckOrStore method for checking or storing master password hash
-func (s *HandleServiceServer) MasterPasswordCheckOrStore(ctx context.Context, req *pb.MasterPasswordRequest) (*pb.MasterPasswordResponse, error) {
+// MasterPassword method for checking or storing master password hash
+func (s *HandleServiceServer) MasterPassword(ctx context.Context, req *pb.MasterPasswordRequest) (*pb.MasterPasswordResponse, error) {
 	// Logick of storring and checking hash of master password
 	s.logger.Info("MasterPasswordCheckOrStore handle called!")
 
-	result, err := s.serv.MasterPasswordCheckOrStore(ctx, req.Token, req.MasterPassword)
+	result, err := s.serv.MasterPasswordCheckOrStore(ctx, req.MasterPassword)
 	if err != nil {
 		s.logger.Error("Failed to check or store master password: " + err.Error())
 		return nil, err
@@ -172,15 +179,10 @@ func (s *HandleServiceServer) RefreshToken(ctx context.Context, req *pb.RefreshT
 func (s *HandleServiceServer) SendDataToServer(ctx context.Context, req *pb.SendDataRequest) (*pb.SendDataResponse, error) {
 	s.logger.Info("SendData handle called!")
 
-	claims, err := s.jwtService.ParseToken(req.Token)
-	if err != nil {
-		return nil, status.Errorf(codes.Unauthenticated, "invalid token")
-	}
-
-	userID, ok := claims["user_id"].(string)
+	userID, ok := ctx.Value(models.UserIDKey).(int)
 	if !ok {
-		s.logger.Error("Invalid token claims")
-		return nil, status.Errorf(codes.Unauthenticated, "invalid token claims")
+		s.logger.Error("Failed to get user ID from context")
+		return nil, status.Errorf(codes.Internal, "failed to get user ID from context")
 	}
 
 	// Перемещаем логику извлечения данных на уровень сервиса
@@ -201,73 +203,69 @@ func (s *HandleServiceServer) SendDataToServer(ctx context.Context, req *pb.Send
 
 // SendDataToClient method for sending data to client
 func (s *HandleServiceServer) SendDataToClient(req *pb.ReceiveDataRequest, stream pb.AuthService_ReceiveDataServer) error {
-    s.logger.Info("SendDataToClient handle called!")
+	s.logger.Info("SendDataToClient handle called!")
 
-    claims, err := s.jwtService.ParseToken(req.Token)
-    if err != nil {
-        return status.Errorf(codes.Unauthenticated, "invalid token")
-    }
+	userID, ok := stream.Context().Value(models.UserIDKey).(int)
+	if !ok {
+		s.logger.Error("Failed to get user ID from context")
+		return status.Errorf(codes.Internal, "failed to get user ID from context")
+	}
 
-    userID, ok := claims["user_id"].(string)
-    if !ok {
-        return status.Errorf(codes.Unauthenticated, "invalid token claims")
-    }
-
-    dataList, err := s.serv.ReadData(stream.Context(), userID)
-    if err != nil {
-        return status.Errorf(codes.Internal, "failed to read data")
-    }
+	dataList, err := s.serv.ReadData(stream.Context(), userID)
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to read data")
+	}
 
 	for _, data := range dataList {
-        pbData, err := convertToPBData(data)
-        if err != nil {
-            return status.Errorf(codes.Internal, "failed to convert data: %v", err)
-        }
-        if err := stream.Send(&pb.ReceiveDataResponse{Data: pbData}); err != nil {
-            return status.Errorf(codes.Internal, "failed to send data: %v", err)
-        }
-    }
+		pbData, err := convertToPBData(data)
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to convert data: %v", err)
+		}
+		if err := stream.Send(&pb.ReceiveDataResponse{Data: pbData}); err != nil {
+			return status.Errorf(codes.Internal, "failed to send data: %v", err)
+		}
+	}
 
-    return nil
+	return nil
 }
 
 // convertToPBData function for converting models.Data to pb.Data
 func convertToPBData(data *models.Data) (*pb.Data, error) {
-    pbData := &pb.Data{
-        DataType: pb.DataType(data.DataType),
-    }
-    switch data.DataType {
-    case models.DataTypeLoginPassword:
-        pbData.Data = &pb.Data_LoginPassword{
-            LoginPassword: &pb.LoginPassword{
-                Login:    data.LoginPassword.Username,
-                Password: data.LoginPassword.Password,
-            },
-        }
-    case models.DataTypeTextNote:
-        pbData.Data = &pb.Data_TextNote{
-            TextNote: &pb.TextNote{
-                Text: data.TextNote.Content,
-            },
-        }
-    case models.DataTypeBinaryData:
-        pbData.Data = &pb.Data_BinaryData{
-            BinaryData: &pb.BinaryData{
-                Data: data.BinaryData.Data,
-            },
-        }
-    case models.DataTypeBankCard:
-        pbData.Data = &pb.Data_BankCard{
-            BankCard: &pb.BankCard{
-                CardNumber: data.BankCard.CardNumber,
-                ExpiryDate: data.BankCard.ExpiryDate,
-                Cvv:        data.BankCard.CVV,
-            },
-        }
-    default:
-        return nil, errors.New("unsupported data type")
-    }
-    return pbData, nil
+	pbData := &pb.Data{
+		DataType: pb.DataType(data.DataType),
+	}
+	switch data.DataType {
+	case models.DataTypeLoginPassword:
+		pbData.Data = &pb.Data_LoginPassword{
+			LoginPassword: &pb.LoginPassword{
+				Login:    data.LoginPassword.Username,
+				Password: data.LoginPassword.Password,
+			},
+		}
+	case models.DataTypeTextNote:
+		pbData.Data = &pb.Data_TextNote{
+			TextNote: &pb.TextNote{
+				Text: data.TextNote.Content,
+			},
+		}
+	case models.DataTypeBinaryData:
+		pbData.Data = &pb.Data_BinaryData{
+			BinaryData: &pb.BinaryData{
+				Data: data.BinaryData.Data,
+			},
+		}
+	case models.DataTypeBankCard:
+		pbData.Data = &pb.Data_BankCard{
+			BankCard: &pb.BankCard{
+				CardNumber: data.BankCard.CardNumber,
+				ExpiryDate: data.BankCard.ExpiryDate,
+				Cvv:        data.BankCard.CVV,
+			},
+		}
+	default:
+		return nil, errors.New("unsupported data type")
+	}
+	return pbData, nil
 }
 
 // extractData function for extracting data from pb.Data

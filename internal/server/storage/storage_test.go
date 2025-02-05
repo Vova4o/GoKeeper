@@ -134,30 +134,30 @@ func TestCheckMasterPassword(t *testing.T) {
 }
 
 func TestCheckMasterPasswordNotFound(t *testing.T) {
-    db, mock := setupTestDB(t)
-    defer db.Close()
+	db, mock := setupTestDB(t)
+	defer db.Close()
 
-    logger := logger.NewLogger("info")
-    storage := &Storage{db: db, logger: logger}
+	logger := logger.NewLogger("info")
+	storage := &Storage{db: db, logger: logger}
 
-    userID := 1
+	userID := 1
 
-    mock.ExpectQuery(`SELECT master_password_hash FROM users WHERE id = \$1`).
-        WithArgs(userID).
-        WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery(`SELECT master_password_hash FROM users WHERE id = \$1`).
+		WithArgs(userID).
+		WillReturnError(sql.ErrNoRows)
 
-    hash, err := storage.CheckMasterPassword(context.Background(), userID)
-    if err != nil {
-        t.Errorf("unexpected error: %v", err)
-    }
+	hash, err := storage.CheckMasterPassword(context.Background(), userID)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
 
-    if hash != "" {
-        t.Errorf("expected master password hash to be empty, got %v", hash)
-    }
+	if hash != "" {
+		t.Errorf("expected master password hash to be empty, got %v", hash)
+	}
 
-    if err := mock.ExpectationsWereMet(); err != nil {
-        t.Errorf("there were unfulfilled expectations: %v", err)
-    }
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expectations: %v", err)
+	}
 }
 
 func TestStoreMasterPassword(t *testing.T) {

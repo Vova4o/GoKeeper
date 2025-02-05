@@ -57,7 +57,9 @@ func main() {
 
 	stor, err := storage.NewStorage(ctx, settings.DSN, logger)
 	if err != nil {
-		log.Fatalf("failed to create storage: %v", err)
+		log.Printf("failed to create storage: %v", err)
+		cancel()
+		os.Exit(1)
 	}
 
 	jwtService := jwtauth.NewJWTService(settings.Secret, settings.Issuer)

@@ -1,10 +1,19 @@
+## Установка protoc и плагинов
+
+1. Скачайте и установите `protoc`:
+   ```sh
+   curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v3.19.1/protoc-3.19.1-osx-x86_64.zip
+   unzip protoc-3.19.1-osx-x86_64.zip -d $HOME/protoc
+   export PATH="$HOME/protoc/bin:$PATH"
+   ```
+
 To generate the gRPC code from the protobuf file, run the following command:
 
 ```bash
 protoc --go_out=. --go-grpc_out=. ./protobuf/auth.proto
 ```
 
-Importante! 
+Importante!
 
 If you expiriancing the following error:
 protobuf/auth/auth_grpc.pb.go:19:16: undefined: grpc.SupportPackageIsVersion9

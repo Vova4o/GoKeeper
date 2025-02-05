@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"goKeeperYandex/internal/client/handlers"
+	"goKeeperYandex/internal/client/service"
+	"goKeeperYandex/internal/client/storage"
 	"goKeeperYandex/internal/client/ui"
 	"goKeeperYandex/package/logger"
 
@@ -20,9 +22,18 @@ import (
 )
 
 func main() {
+	dbName := "keeper.db"
+
 	// Log message
 	logger := logger.NewLogger("info")
 	logger.Info("Welcome to the client!")
+
+	stor, err := storage.NewStorage(dbName,logger)
+	if err != nil {
+		log.Fatalf("Failed to create storage: %v", err)
+	}
+
+	serv := service.NewService(stor, logger)
 
 	// Загрузка сертификата с сервера
 	resp, err := http.Get("http://localhost:8080/cert")
@@ -51,13 +62,13 @@ func main() {
 	defer cancel()
 
 	// Create new gRPC client for connection to server
-	grpcClient, err := handlers.NewGRPCClient(ctx, "localhost:50051", creds)
+	grpcClient, err := handlers.NewGRPCClient(ctx, "localhost:50051", creds, logger, serv)
 	if err != nil {
 		log.Fatalf("Failed to create gRPC client: %v", err)
 	}
 
 	// Create new UI instance
-	ui := ui.NewUI(grpcClient)
+	ui := ui.NewUI(ctx, grpcClient, logger)
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)

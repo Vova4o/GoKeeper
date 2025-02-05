@@ -171,28 +171,28 @@ func TestRefreshToken_RevokedToken(t *testing.T) {
 }
 
 func TestRefreshToken_ExpiredToken(t *testing.T) {
-    mockStorager := new(MockStorager)
-    logger := logger.NewLogger("info")
-    jwtService := jwtauth.NewJWTService("secret", "issuer")
-    service := &Service{
-        stor:       mockStorager,
-        jwtService: jwtService,
-        logger:     logger,
-    }
+	mockStorager := new(MockStorager)
+	logger := logger.NewLogger("info")
+	jwtService := jwtauth.NewJWTService("secret", "issuer")
+	service := &Service{
+		stor:       mockStorager,
+		jwtService: jwtService,
+		logger:     logger,
+	}
 
-    userID := 1
-    // Create a refresh token with a very short expiration time
-    refreshToken, _ := jwtService.CreateRefreshToken(userID, time.Second*1)
+	userID := 1
+	// Create a refresh token with a very short expiration time
+	refreshToken, _ := jwtService.CreateRefreshToken(userID, time.Second*1)
 
-    // Wait for the token to expire
-    time.Sleep(time.Second * 2)
+	// Wait for the token to expire
+	time.Sleep(time.Second * 2)
 
-    // Mock the DeleteRefreshToken method
-    mockStorager.On("DeleteRefreshToken", mock.Anything, refreshToken).Return(nil)
+	// Mock the DeleteRefreshToken method
+	mockStorager.On("DeleteRefreshToken", mock.Anything, refreshToken).Return(nil)
 
-    // Call the RefreshToken function
-    userAfterRefresh, err := service.RefreshToken(context.Background(), refreshToken)
-    assert.EqualError(t, err, "refresh token expired")
-    assert.Nil(t, userAfterRefresh)
-    mockStorager.AssertExpectations(t)
+	// Call the RefreshToken function
+	userAfterRefresh, err := service.RefreshToken(context.Background(), refreshToken)
+	assert.EqualError(t, err, "refresh token expired")
+	assert.Nil(t, userAfterRefresh)
+	mockStorager.AssertExpectations(t)
 }

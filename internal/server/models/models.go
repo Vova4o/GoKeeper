@@ -9,10 +9,18 @@ type User struct {
 	PasswordHash       string `gorm:"not null"`
 	MasterPasswordHash string `gorm:"default:null"`
 	RefreshTokens      []RefreshToken
-    PrivateInfo        []PrivateInfo
+	PrivateInfo        []PrivateInfo
 }
 
-// UserRegesred struct to return user tokens after regestration
+// ContextKey is a custom type for context keys
+type ContextKey struct {
+	name string
+}
+
+// UserIDKey is a key for user id in context
+var UserIDKey = ContextKey{"user_id"}
+
+// UserRegesred struct to return user tokens after registration
 type UserRegesred struct {
 	UserID       int
 	AccessToken  string
@@ -39,8 +47,8 @@ type RefreshToken struct {
 // PrivateInfo модель для хранения приватной информации
 type PrivateInfo struct {
 	UserID   string `gorm:"not null"`
-	DataType int `gorm:"not null"`
-	Data     Data `gorm:"not null"`
+	DataType int    `gorm:"not null"`
+	Data     Data   `gorm:"not null"`
 }
 
 // DataType тип данных

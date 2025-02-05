@@ -1,6 +1,8 @@
 package flags
 
 import (
+	"log"
+
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
@@ -43,7 +45,10 @@ func (s *Settings) LoadConfig() {
 	pflag.Parse()
 
 	// Связывание флагов с viper
-	viper.BindPFlags(pflag.CommandLine)
+	err := viper.BindPFlags(pflag.CommandLine)
+	if err != nil {
+		log.Printf("failed to bind flags: %v", err)
+	}
 	viper.AutomaticEnv()
 
 	// Загрузка конфигурации

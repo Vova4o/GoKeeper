@@ -25,7 +25,6 @@ message RegisterResponse {
 }
 
 message MasterPasswordRequest {
-  string token = 1;
   string masterPassword = 2;
 }
 
@@ -70,27 +69,30 @@ message Data {
 }
 
 message LoginPassword {
-  string login = 1;
-  string password = 2;
+  string title = 1;
+  string login = 2;
+  string password = 3;
 }
 
 message TextNote {
-  string text = 1;
+  string title = 1;
+  string text = 2;
 }
 
 message BinaryData {
-  bytes data = 1;
+  string title = 1;
+  bytes data = 2;
 }
 
 message BankCard {
-  string cardNumber = 1;
-  string cardHolder = 2;
-  string cvv = 3;
-  string expiryDate = 4;
+  string title = 1;
+  string cardNumber = 2;
+  string cardHolder = 3;
+  string cvv = 4;
+  string expiryDate = 5;
 }
 
 message SendDataRequest {
-  string token = 1;
   Data data = 2;
 }
 
@@ -99,7 +101,7 @@ message SendDataResponse {
 }
 
 message ReceiveDataRequest {
-  string token = 1;
+  DataType dataType = 1;
 }
 
 message ReceiveDataResponse {

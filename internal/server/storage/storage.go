@@ -106,8 +106,8 @@ func (s *Storage) GetRefreshTokens(ctx context.Context, userID int) ([]models.Re
 	return tokens, nil
 }
 
-// FindUser ищет пользователя
-func (s *Storage) FindUser(ctx context.Context, username string) (*models.User, error) {
+// FindUserByName ищет пользователя
+func (s *Storage) FindUserByName(ctx context.Context, username string) (*models.User, error) {
 	query := `SELECT id, password_hash FROM users WHERE username = $1`
 	user := &models.User{}
 	err := s.db.QueryRowContext(ctx, query, username).Scan(&user.UserID, &user.PasswordHash)
@@ -122,10 +122,26 @@ func (s *Storage) FindUser(ctx context.Context, username string) (*models.User, 
 	return user, nil
 }
 
+// FindUserByID ищет пользователя по ID
+func (s *Storage) FindUserByID(ctx context.Context, userID int) (*models.User, error) {
+	query := `SELECT id, username, password_hash FROM users WHERE id = $1`
+	user := &models.User{}
+	err := s.db.QueryRowContext(ctx, query, userID).Scan(&user.UserID, &user.Username, &user.PasswordHash)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		s.logger.Error("Failed to find user by ID")
+		return nil, err
+	}
+
+	return user, nil
+}
+
 // CheckMasterPassword проверяет мастер-пароль
 func (s *Storage) CheckMasterPassword(ctx context.Context, userID int) (string, error) {
 	query := `SELECT master_password_hash FROM users WHERE id = $1`
-	var masterPasswordHash string
+	var masterPasswordHash sql.NullString
 	err := s.db.QueryRowContext(ctx, query, userID).Scan(&masterPasswordHash)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -135,7 +151,11 @@ func (s *Storage) CheckMasterPassword(ctx context.Context, userID int) (string, 
 		return "", err
 	}
 
-	return masterPasswordHash, nil
+	if !masterPasswordHash.Valid {
+		return "", nil
+	}
+
+	return masterPasswordHash.String, nil
 }
 
 // StoreMasterPassword сохраняет мастер-пароль
@@ -152,7 +172,7 @@ func (s *Storage) StoreMasterPassword(ctx context.Context, userID int, masterPas
 }
 
 // SaveData сохраняет данные в базу данных в зависимости от типа
-func (s *Storage) SaveData(ctx context.Context, userID string, data models.Data) error {
+func (s *Storage) SaveData(ctx context.Context, userID int, data models.Data) error {
 	switch data.DataType {
 	case models.DataTypeLoginPassword:
 		return s.SaveLoginPassword(ctx, userID, *data.LoginPassword)
@@ -168,7 +188,7 @@ func (s *Storage) SaveData(ctx context.Context, userID string, data models.Data)
 }
 
 // SaveLoginPassword сохраняет логин и пароль
-func (s *Storage) SaveLoginPassword(ctx context.Context, userID string, loginPassword models.LoginPassword) error {
+func (s *Storage) SaveLoginPassword(ctx context.Context, userID int, loginPassword models.LoginPassword) error {
 	query := `UPDATE private_data SET username = $1, password = $2 WHERE user_id = $3 AND data_type = $4`
 	_, err := s.db.ExecContext(ctx, query, loginPassword.Username, loginPassword.Password, userID, models.DataTypeLoginPassword)
 	if err != nil {
@@ -181,7 +201,7 @@ func (s *Storage) SaveLoginPassword(ctx context.Context, userID string, loginPas
 }
 
 // SaveTextNote сохраняет текстовую заметку
-func (s *Storage) SaveTextNote(ctx context.Context, userID string, textNote models.TextNote) error {
+func (s *Storage) SaveTextNote(ctx context.Context, userID int, textNote models.TextNote) error {
 	query := `UPDATE private_data SET title = $1, content = $2 WHERE user_id = $3 AND data_type = $4`
 	_, err := s.db.ExecContext(ctx, query, textNote.Title, textNote.Content, userID, models.DataTypeTextNote)
 	if err != nil {
@@ -194,7 +214,7 @@ func (s *Storage) SaveTextNote(ctx context.Context, userID string, textNote mode
 }
 
 // SaveBinaryData сохраняет бинарные данные
-func (s *Storage) SaveBinaryData(ctx context.Context, userID string, binaryData models.BinaryData) error {
+func (s *Storage) SaveBinaryData(ctx context.Context, userID int, binaryData models.BinaryData) error {
 	query := `UPDATE private_data SET filename = $1, data = $2 WHERE user_id = $3 AND data_type = $4`
 	_, err := s.db.ExecContext(ctx, query, binaryData.Filename, binaryData.Data, userID, models.DataTypeBinaryData)
 	if err != nil {
@@ -207,7 +227,7 @@ func (s *Storage) SaveBinaryData(ctx context.Context, userID string, binaryData 
 }
 
 // SaveBankCard сохраняет банковскую карту
-func (s *Storage) SaveBankCard(ctx context.Context, userID string, bankCard models.BankCard) error {
+func (s *Storage) SaveBankCard(ctx context.Context, userID int, bankCard models.BankCard) error {
 	query := `UPDATE private_data SET card_number = $1, expiry_date = $2, cvv = $3 WHERE user_id = $4 AND data_type = $5`
 	_, err := s.db.ExecContext(ctx, query, bankCard.CardNumber, bankCard.ExpiryDate, bankCard.CVV, userID, models.DataTypeBankCard)
 	if err != nil {
@@ -220,65 +240,65 @@ func (s *Storage) SaveBankCard(ctx context.Context, userID string, bankCard mode
 }
 
 // ReadData читает данные по типу
-func (s *Storage) ReadData(ctx context.Context, userID string) ([]*models.Data, error) {
-    query := `SELECT data_type, login, password, title, content, filename, data, card_number, expiry_date, cvv FROM private_data WHERE user_id = $1`
-    rows, err := s.db.QueryContext(ctx, query, userID)
-    if err != nil {
-        s.logger.Error("Failed to read data: " + err.Error())
-        return nil, err
-    }
-    defer rows.Close()
+func (s *Storage) ReadData(ctx context.Context, userID int) ([]*models.Data, error) {
+	query := `SELECT data_type, login, password, title, content, filename, data, card_number, expiry_date, cvv FROM private_data WHERE user_id = $1`
+	rows, err := s.db.QueryContext(ctx, query, userID)
+	if err != nil {
+		s.logger.Error("Failed to read data: " + err.Error())
+		return nil, err
+	}
+	defer rows.Close()
 
-    var dataList []*models.Data
-    for rows.Next() {
-        var dataType int
-        var login, password, title, content, filename, cardNumber, expiryDate, cvv sql.NullString
-        var binaryData []byte
+	var dataList []*models.Data
+	for rows.Next() {
+		var dataType int
+		var login, password, title, content, filename, cardNumber, expiryDate, cvv sql.NullString
+		var binaryData []byte
 
-        err := rows.Scan(&dataType, &login, &password, &title, &content, &filename, &binaryData, &cardNumber, &expiryDate, &cvv)
-        if err != nil {
-            s.logger.Error("Failed to scan row: " + err.Error())
-            return nil, err
-        }
+		err := rows.Scan(&dataType, &login, &password, &title, &content, &filename, &binaryData, &cardNumber, &expiryDate, &cvv)
+		if err != nil {
+			s.logger.Error("Failed to scan row: " + err.Error())
+			return nil, err
+		}
 
-        data := &models.Data{
-            DataType: models.DataType(dataType),
-        }
+		data := &models.Data{
+			DataType: models.DataType(dataType),
+		}
 
-        switch data.DataType {
-        case models.DataTypeLoginPassword:
-            data.LoginPassword = &models.LoginPassword{
-                Username: login.String,
-                Password: password.String,
-            }
-        case models.DataTypeTextNote:
-            data.TextNote = &models.TextNote{
-                Title:   title.String,
-                Content: content.String,
-            }
-        case models.DataTypeBinaryData:
-            data.BinaryData = &models.BinaryData{
-                Filename: filename.String,
-                Data:     binaryData,
-            }
-        case models.DataTypeBankCard:
-            data.BankCard = &models.BankCard{
-                CardNumber: cardNumber.String,
-                ExpiryDate: expiryDate.String,
-                CVV:        cvv.String,
-            }
-        }
+		switch data.DataType {
+		case models.DataTypeLoginPassword:
+			data.LoginPassword = &models.LoginPassword{
+				Username: login.String,
+				Password: password.String,
+			}
+		case models.DataTypeTextNote:
+			data.TextNote = &models.TextNote{
+				Title:   title.String,
+				Content: content.String,
+			}
+		case models.DataTypeBinaryData:
+			data.BinaryData = &models.BinaryData{
+				Filename: filename.String,
+				Data:     binaryData,
+			}
+		case models.DataTypeBankCard:
+			data.BankCard = &models.BankCard{
+				CardNumber: cardNumber.String,
+				ExpiryDate: expiryDate.String,
+				CVV:        cvv.String,
+			}
+		}
 
-        dataList = append(dataList, data)
-    }
+		dataList = append(dataList, data)
+	}
 
-    if err := rows.Err(); err != nil {
-        s.logger.Error("Rows error: " + err.Error())
-        return nil, err
-    }
+	if err := rows.Err(); err != nil {
+		s.logger.Error("Rows error: " + err.Error())
+		return nil, err
+	}
 
-    s.logger.Info("Data read successfully")
-    return dataList, nil
+	s.logger.Info("Data read successfully")
+	return dataList, nil
 }
 
 // Close закрывает соединение с базой данных

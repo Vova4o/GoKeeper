@@ -1,0 +1,76 @@
+linters:
+  enable:
+    - govet
+    - errcheck
+    - staticcheck
+    - gosimple
+    - unused
+    - structcheck
+    - varcheck
+    - ineffassign
+    - deadcode
+    - typecheck
+    - gofmt
+    - goimports
+    - gocyclo
+    - dupl
+    - unconvert
+    - misspell
+    - gocritic
+
+run:
+  timeout: 5m
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck
+        - govet
+        - staticcheck
+        - gosimple
+        - unused
+        - structcheck
+        - varcheck
+        - ineffassign
+        - deadcode
+        - typecheck
+        - gofmt
+        - goimports
+        - gocyclo
+        - dupl
+        - unconvert
+        - misspell
+        - gocritic
+
+
+# Keep it here so i wont forget to add it to the github actions
+# CI/CD INTEGRATION
+
+# name: Go
+
+# on:
+#   push:
+#     branches: [ main ]
+#   pull_request:
+#     branches: [ main ]
+
+# jobs:
+#   lint:
+#     runs-on: ubuntu-latest
+
+#     steps:
+#     - name: Checkout code
+#       uses: actions/checkout@v2
+
+#     - name: Set up Go
+#       uses: actions/setup-go@v2
+#       with:
+#         go-version: 1.17
+
+#     - name: Install golangci-lint
+#       run: |
+#         curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.42.1
+
+#     - name: Run golangci-lint
+#       run: golangci-lint run

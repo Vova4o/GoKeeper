@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -31,8 +33,8 @@ type Storager interface {
 	CheckMasterPassword(ctx context.Context, userID int) (string, error)
 	StoreMasterPassword(ctx context.Context, userID int, masterPasswordHash string) error
 	GetRefreshTokens(ctx context.Context, userID int) ([]models.RefreshToken, error)
-	SaveData(ctx context.Context, userID int, data models.Data) error
-	ReadData(ctx context.Context, userID int) ([]*models.Data, error)
+	SaveData(ctx context.Context, userID int, dataType models.DataType, data string) error
+	ReadData(ctx context.Context, userID int, dataType models.DataType) ([]*models.PrivateInfo, error)
 }
 
 // NewService создает новый экземпляр сервиса
@@ -281,7 +283,24 @@ func (s *Service) RecordData(ctx context.Context, userID int, data models.Data) 
 		return err
 	}
 
-	err = s.stor.SaveData(ctx, userID, data)
+	fmt.Println("Data type: ", data.DataType)
+	// Вывод данных в формате JSON для удобства
+	dataJSON, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		s.logger.Error("Failed to marshal data to JSON: " + err.Error())
+		return err
+	}
+	fmt.Println("Data: ", string(dataJSON))
+
+	// Сериализация данных
+	dataStr, err := models.SerializeData(data)
+	if err != nil {
+		s.logger.Error("Failed to serialize data: " + err.Error())
+		return err
+	}
+
+	// Сохранение данных в базу данных (пример)
+	err = s.stor.SaveData(ctx, userID, data.DataType, dataStr)
 	if err != nil {
 		s.logger.Error("Failed to save data: " + err.Error())
 		return err
@@ -291,7 +310,7 @@ func (s *Service) RecordData(ctx context.Context, userID int, data models.Data) 
 }
 
 // ReadData читает данные по типу
-func (s *Service) ReadData(ctx context.Context, userID int ) ([]*models.Data, error) {
+func (s *Service) ReadData(ctx context.Context, userID int, dataType models.DataType) ([]*models.Data, error) {
 	// check if user exists
 	_, err := s.stor.FindUserByID(ctx, userID)
 	if err != nil {
@@ -299,5 +318,84 @@ func (s *Service) ReadData(ctx context.Context, userID int ) ([]*models.Data, er
 		return nil, err
 	}
 
-	return s.stor.ReadData(ctx, userID)
+	// Чтение данных из базы данных (пример)
+	privateInfos, err := s.stor.ReadData(ctx, userID, dataType)
+	if err != nil {
+		s.logger.Error("Failed to get data: " + err.Error())
+		return nil, err
+	}
+
+	var dataList []*models.Data
+	for _, privateInfo := range privateInfos {
+		// Десериализация данных
+		data, err := models.DeserializeData(privateInfo.Data)
+		if err != nil {
+			s.logger.Error("Failed to deserialize data: " + err.Error())
+			return nil, err
+		}
+		dataList = append(dataList, &data)
+	}
+
+	return dataList, nil
 }
+
+// // RecordData записывает данные
+// func (s *Service) RecordData(ctx context.Context, userID int, data models.Data) error {
+// 	// check if user exists
+// 	_, err := s.stor.FindUserByID(ctx, userID)
+// 	if err != nil {
+// 		s.logger.Error("Failed to find user: " + err.Error())
+// 		return err
+// 	}
+
+// 	// ok so have models.Data, need to serrilize it to bynary string
+// 	stringToStore, err := models.SerializeData(data)
+// 	if err != nil {
+// 		s.logger.Error("Failed to serialize data: " + err.Error())
+// 		return err
+// 	}
+
+// 	switch data.DataType {
+// 	case models.DataTypeTextNote:
+// 		err := s.stor.SaveData(ctx, userID, models.DataTypeTextNote, stringToStore)
+// 		if err != nil {
+// 			s.logger.Error("Failed to save data: " + err.Error())
+// 			return err
+// 		}
+// 	case models.DataTypeLoginPassword:
+// 		err := s.stor.SaveData(ctx, userID, models.DataTypeLoginPassword, stringToStore)
+// 		if err != nil {
+// 			s.logger.Error("Failed to save data: " + err.Error())
+// 			return err
+// 		}
+// 	case models.DataTypeBinaryData:
+// 		err := s.stor.SaveData(ctx, userID, models.DataTypeBinaryData, stringToStore)
+// 		if err != nil {
+// 			s.logger.Error("Failed to save data: " + err.Error())
+// 			return err
+// 		}
+// 	case models.DataTypeBankCard:
+// 		err := s.stor.SaveData(ctx, userID, models.DataTypeBankCard, stringToStore)
+// 		if err != nil {
+// 			s.logger.Error("Failed to save data: " + err.Error())
+// 			return err
+// 		}
+// 	default:
+// 		s.logger.Error("Unknown data type")
+// 		return errors.New("unknown data type")
+// 	}
+
+// 	return nil
+// }
+
+// // ReadData читает данные по типу
+// func (s *Service) ReadData(ctx context.Context, userID int) ([]*models.Data, error) {
+// 	// check if user exists
+// 	_, err := s.stor.FindUserByID(ctx, userID)
+// 	if err != nil {
+// 		s.logger.Error("Failed to find user: " + err.Error())
+// 		return nil, err
+// 	}
+
+// 	return s.stor.ReadData(ctx, userID)
+// }

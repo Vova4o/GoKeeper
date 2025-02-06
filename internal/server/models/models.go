@@ -1,6 +1,11 @@
 package models
 
-import "errors"
+import (
+	"bytes"
+	"encoding/base64"
+	"encoding/gob"
+	"errors"
+)
 
 // User модель пользователя
 type User struct {
@@ -39,16 +44,16 @@ type Settings struct {
 
 // RefreshToken модель для хранения refresh токенов
 type RefreshToken struct {
-	UserID    int    `gorm:"not null"`
-	Token     string `gorm:"not null"`
-	IsRevoked bool   `gorm:"not null, default:false"`
+	UserID    int
+	Token     string
+	IsRevoked bool
 }
 
 // PrivateInfo модель для хранения приватной информации
 type PrivateInfo struct {
-	UserID   string `gorm:"not null"`
-	DataType int    `gorm:"not null"`
-	Data     Data   `gorm:"not null"`
+	UserID   int
+	DataType int
+	Data     string
 }
 
 // DataType тип данных
@@ -86,22 +91,44 @@ type TextNote struct {
 
 // BinaryData модель для хранения бинарных данных
 type BinaryData struct {
-	Filename string
-	Data     []byte
+	Title string
+	Data  []byte
 }
 
 // BankCard модель для хранения банковской карты
 type BankCard struct {
+	Title      string
 	CardNumber string
 	ExpiryDate string
 	CVV        string
 }
 
-// Data модель для хранения данных
-// type Data struct {
-//     DataType DataType
-//     Data     interface{}
-// }
+// SerializeData сериализует структуру Data в строку Base64
+func SerializeData(data Data) (string, error) {
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	err := enc.Encode(data)
+	if err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
+}
+
+// DeserializeData десериализует строку Base64 обратно в структуру Data
+func DeserializeData(dataStr string) (Data, error) {
+	dataBytes, err := base64.StdEncoding.DecodeString(dataStr)
+	if err != nil {
+		return Data{}, err
+	}
+	buf := bytes.NewBuffer(dataBytes)
+	dec := gob.NewDecoder(buf)
+	var data Data
+	err = dec.Decode(&data)
+	if err != nil {
+		return Data{}, err
+	}
+	return data, nil
+}
 
 // GetData возвращает данные в виде указателя на тип T
 func GetData[T any](data *Data, dataType DataType) (*T, bool) {

@@ -19,6 +19,7 @@ type GRPCClienter interface {
 	Login(ctx context.Context, user models.RegisterAndLogin) error
 	MasterPasswordStoreOrCheck(ctx context.Context, masterPassword string) (bool, error)
 	AddDataToServer(ctx context.Context, data models.Data) error
+	GetDataFromServer(ctx context.Context, dataType models.DataTypes) ([]models.Data, error)
 }
 
 // UI структура для графического интерфейса
@@ -232,24 +233,24 @@ func (u *UI) resetContent(leftContent, rightContent *fyne.Container) {
 
 // openAddBankCardWindow открывает новое окно с полями для ввода данных банковской карты
 func (u *UI) openAddBankCardWindow() {
-    newWindow := fyne.CurrentApp().NewWindow("Добавить банковскую карту")
-    newWindow.Resize(fyne.NewSize(400, 200))
+	newWindow := fyne.CurrentApp().NewWindow("Добавить банковскую карту")
+	newWindow.Resize(fyne.NewSize(400, 200))
 
-    titleEntry := widget.NewEntry()
-    titleEntry.SetPlaceHolder("Название карты (пример: YellowBank)")
+	titleEntry := widget.NewEntry()
+	titleEntry.SetPlaceHolder("Название карты (пример: YellowBank)")
 
-    cardNumberEntry := widget.NewEntry()
-    cardNumberEntry.SetPlaceHolder("Номер карты")
+	cardNumberEntry := widget.NewEntry()
+	cardNumberEntry.SetPlaceHolder("Номер карты")
 
-    expiryEntry := widget.NewEntry()
-    expiryEntry.SetPlaceHolder("Срок действия (MM/YY)")
+	expiryEntry := widget.NewEntry()
+	expiryEntry.SetPlaceHolder("Срок действия (MM/YY)")
 
-    cvvEntry := widget.NewEntry()
-    cvvEntry.SetPlaceHolder("CVV")
+	cvvEntry := widget.NewEntry()
+	cvvEntry.SetPlaceHolder("CVV")
 
-    saveButton := widget.NewButton("Сохранить", func() {
-        u.logger.Info("Сохраняем карту: " + titleEntry.Text)
-        err := u.handler.AddDataToServer(u.ctx, models.Data{
+	saveButton := widget.NewButton("Сохранить", func() {
+		u.logger.Info("Сохраняем карту: " + titleEntry.Text)
+		err := u.handler.AddDataToServer(u.ctx, models.Data{
 			DataType: models.DataTypeBankCard,
 			Data: models.BankCard{
 				Title:      titleEntry.Text,
@@ -262,52 +263,42 @@ func (u *UI) openAddBankCardWindow() {
 			log.Println("Failed to add bank card:", err)
 			u.showMainWindow(fyne.CurrentApp())
 		}
-        newWindow.Close()
-    })
+		newWindow.Close()
+	})
 
-    form := container.NewVBox(
-        widget.NewLabel("Введите данные карты:"),
-        titleEntry,
-        cardNumberEntry,
-        expiryEntry,
-        cvvEntry,
-        saveButton,
-    )
+	form := container.NewVBox(
+		widget.NewLabel("Введите данные карты:"),
+		titleEntry,
+		cardNumberEntry,
+		expiryEntry,
+		cvvEntry,
+		saveButton,
+	)
 
-    newWindow.SetContent(form)
-    newWindow.Show()
+	newWindow.SetContent(form)
+	newWindow.Show()
 }
 
 // showBankCards отображает список банковских карт
 func (u *UI) showBankCards() fyne.CanvasObject {
-
-	// mock data
-	bankCards := []models.BankCard{
-		{
-			Title:      "YellowBank",
-			CardNumber: "1234 5678 1234 5678",
-			ExpiryDate: "12/23",
-			Cvv:        "123",
-		},
-		{
-			Title:      "GreenBank",
-			CardNumber: "9876 5432 9876 5432",
-			ExpiryDate: "11/22",
-			Cvv:        "321",
-		},
+	u.logger.Info("Получаем банковские карты")
+	// Получаем данные о банковских картах с сервера
+	dataFromServer, err := u.handler.GetDataFromServer(u.ctx, models.DataTypeBankCard)
+	if err != nil {
+		u.logger.Error("Failed to get bank cards from server")
+		return widget.NewLabel("Failed to get bank cards from server: " + err.Error())
 	}
 
-	// dataFromServer, err := u.handler.GetDataFromServer(u.ctx, models.DataTypeBankCard)
-	// if err != nil {
-	// 	u.logger.Error("Failed to get bank cards from server:", err)
-	// 	return widget.NewLabel("Failed to get bank cards from server: " + err.Error())
-	// }
+	var bankCards []models.BankCard
+    for _, data := range dataFromServer {
+        if bankCard, ok := data.Data.(models.BankCard); ok {
+            bankCards = append(bankCards, bankCard)
+        }
+    }
 
-	// bankCards, ok := dataFromServer.([]models.BankCard)
-	// if !ok {
-	// 	u.logger.Error("Failed to convert data to bank cards")
-	// 	return widget.NewLabel("Failed to convert data to bank cards")
-	// }
+    if len(bankCards) == 0 {
+        return widget.NewLabel("No bank cards found")
+    }
 
 	// Создаем список виджетов для отображения банковских карт
 	var bankCardsWidgets []fyne.CanvasObject

@@ -39,7 +39,7 @@ type Servicer interface {
 	AuthenticateUser(ctx context.Context, username, password string) (*models.UserRegesred, error)
 	RefreshToken(ctx context.Context, refreshToken string) (*models.UserRegesred, error)
 	RecordData(ctx context.Context, userID int, data models.Data) error
-	ReadData(ctx context.Context, userID int) ([]*models.Data, error)
+	ReadData(ctx context.Context, userID int, dataType models.DataType) ([]*models.Data, error)
 }
 
 // JWTServicer interface for JWT service methods
@@ -203,18 +203,31 @@ func (s *HandleServiceServer) SendData(ctx context.Context, req *pb.SendDataRequ
 	return &pb.SendDataResponse{Success: true}, nil
 }
 
-// SendDataToClient method for sending data to client
-func (s *HandleServiceServer) SendDataToClient(req *pb.ReceiveDataRequest, stream pb.AuthService_ReceiveDataServer) error {
-	s.logger.Info("SendDataToClient handle called!")
+// ReceiveData method for sending data to client
+func (s *HandleServiceServer) ReceiveData(req *pb.ReceiveDataRequest, stream grpc.ServerStreamingServer[pb.ReceiveDataResponse]) error {
+	s.logger.Info("ReceiveData handle called!")
 
-	userID, ok := stream.Context().Value(models.UserIDKey).(int)
-	if !ok {
-		s.logger.Error("Failed to get user ID from context")
-		return status.Errorf(codes.Internal, "failed to get user ID from context")
-	}
+    md, ok := metadata.FromIncomingContext(stream.Context())
+    if !ok {
+        s.logger.Error("Failed to get metadata from context")
+        return status.Errorf(codes.Internal, "failed to get metadata from context")
+    }
 
-	dataList, err := s.serv.ReadData(stream.Context(), userID)
+    token := md["authorization"]
+    if len(token) == 0 {
+        s.logger.Error("Missing token")
+        return status.Errorf(codes.Unauthenticated, "missing token")
+    }
+
+    userID, err := s.jwtService.UserIDFromToken(token[0])
+    if err != nil {
+        s.logger.Error("Failed to get user ID from token: " + err.Error())
+        return status.Errorf(codes.Unauthenticated, "invalid token userID")
+    }
+
+	dataList, err := s.serv.ReadData(stream.Context(), userID, models.DataType(req.DataType))
 	if err != nil {
+		s.logger.Info("Failed to read data: " + err.Error())
 		return status.Errorf(codes.Internal, "failed to read data")
 	}
 
@@ -299,8 +312,8 @@ func extractData(pbData *pb.Data) (models.Data, error) {
 		data = models.Data{
 			DataType: models.DataTypeBinaryData,
 			BinaryData: &models.BinaryData{
-				Filename: bd.Title,
-				Data:     bd.Data,
+				Title: bd.Title,
+				Data:  bd.Data,
 			},
 		}
 	case pb.DataType_BANK_CARD:
@@ -308,6 +321,7 @@ func extractData(pbData *pb.Data) (models.Data, error) {
 		data = models.Data{
 			DataType: models.DataTypeBankCard,
 			BankCard: &models.BankCard{
+				Title:      bc.Title,
 				CardNumber: bc.CardNumber,
 				ExpiryDate: bc.ExpiryDate,
 				CVV:        bc.Cvv,

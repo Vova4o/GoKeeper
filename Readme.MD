@@ -1,3 +1,13 @@
+## Installing Protobuf
+
+```sh
+
+chmod +x /Users/vladimirgavrilenko/GoProjects/GoKeeper/proto_install.sh
+
+/Users/vladimirgavrilenko/GoProjects/GoKeeper/proto_install.sh
+
+```
+
 ## Установка protoc и плагинов
 
 1. Скачайте и установите `protoc`:

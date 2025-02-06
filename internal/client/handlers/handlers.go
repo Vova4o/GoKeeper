@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"time"
 
@@ -149,8 +150,6 @@ func (c *GRPCClient) RefreshToken(ctx context.Context) error {
 func (c *GRPCClient) CheckAndRefreshToken(ctx context.Context) error {
 	c.log.Info("CheckAndRefreshToken called!")
 
-	c.log.Info("Access token in CheckAndRefresh:" + c.AccessToken)
-
 	// Парсинг токена без проверки подписи
 	token, _, err := new(jwt.Parser).ParseUnverified(c.AccessToken, jwt.MapClaims{})
 	if err != nil {
@@ -277,24 +276,43 @@ func (c *GRPCClient) AddDataToServer(ctx context.Context, data models.Data) erro
 	return nil
 }
 
-// // GetDataFromServer function for getting data from server
-// func (c *GRPCClient) GetDataFromServer(ctx context.Context, dataType models.DataTypes) ([]models.Data, error) {
-// 	c.log.Info("GetDataFromServer called!")
+// GetDataFromServer function for getting data from server
+func (c *GRPCClient) GetDataFromServer(ctx context.Context, dataType models.DataTypes) ([]models.Data, error) {
+	c.log.Info("GetDataFromServer called!")
 
-// 	c.CheckAndRefreshToken(ctx)
+	err := c.CheckAndRefreshToken(ctx)
+	if err != nil {
+		c.log.Error("Error refreshing token")
+		return nil, err
+	}
 
-// 	// Добавление токена в метаданные
-// 	md := metadata.New(map[string]string{"authorization": c.AccessToken})
-// 	ctx = metadata.NewOutgoingContext(ctx, md)
+	// Добавление токена в метаданные
+	md := metadata.New(map[string]string{"authorization": c.AccessToken})
+	ctx = metadata.NewOutgoingContext(ctx, md)
 
-// 	res, err := c.client.ReceiveData(ctx, &pb.GetRequest{DataType: pb.DataType(dataType)})
-// 	if err != nil {
-// 		c.log.Error("Error getting data from server")
-// 		return nil, err
-// 	}
+	stream, err := c.client.ReceiveData(ctx, &pb.ReceiveDataRequest{DataType: pb.DataType(dataType)})
+	if err != nil {
+		c.log.Error("Error getting data from server")
+		return nil, err
+	}
 
-// 	return convertPBToData(res.Data), nil
-// }
+	var dataList []models.Data
+	for {
+		res, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			c.log.Error("Error receiving data from stream")
+			return nil, err
+		}
+
+		data := convertPBToData(res.Data)
+		dataList = append(dataList, data)
+	}
+
+	return dataList, nil
+}
 
 func convertDataToPBDatas(d models.Data) *pb.Data {
 	switch d.DataType {

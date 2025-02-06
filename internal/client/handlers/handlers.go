@@ -189,8 +189,12 @@ func (c *GRPCClient) CheckAndRefreshToken(ctx context.Context) error {
 			RefreshToken: refreshToken,
 		}
 
+		md := metadata.New(map[string]string{"authorization": refreshToken})
+		ctx = metadata.NewOutgoingContext(ctx, md)
+
 		refreshResp, err := c.client.RefreshToken(ctx, refreshReq)
 		if err != nil {
+			c.log.Error("Error refreshing token on server")
 			return status.Errorf(codes.Unauthenticated, "failed to refresh token: %v", err)
 		}
 
@@ -200,6 +204,7 @@ func (c *GRPCClient) CheckAndRefreshToken(ctx context.Context) error {
 		c.AccessToken = refreshResp.Token
 		err = c.serv.AddOrReplaceRefreshToken(ctx, refreshResp.RefreshToken)
 		if err != nil {
+			c.log.Error("Error saving refresh token")
 			return status.Errorf(codes.Internal, "failed to save refresh token: %v", err)
 		}
 
@@ -250,6 +255,14 @@ func (c *GRPCClient) MasterPasswordStoreOrCheck(ctx context.Context, masterPassw
 // AddDataToServer function for adding data to server
 func (c *GRPCClient) AddDataToServer(ctx context.Context, data models.Data) error {
 	c.log.Info("AddDataToServer called!")
+
+	// encryptedData, err := encryptData(data, c.MasterPassword)
+	// if err != nil {
+	// 	c.log.Error("Error encrypting data")
+	// 	return err
+	// }
+
+	// data.Data = encryptedData.Data
 
 	pbData := convertDataToPBDatas(data)
 
@@ -308,16 +321,187 @@ func (c *GRPCClient) GetDataFromServer(ctx context.Context, dataType models.Data
 		}
 
 		data := convertPBToData(res.Data)
+
+		// decryptedData, err := decryptData(data, c.MasterPassword)
+		// if err != nil {
+		// 	c.log.Error("Error decrypting data")
+		// 	return nil, err
+		// }
+
+		// data.Data = decryptedData.Data
+
 		dataList = append(dataList, data)
 	}
 
 	return dataList, nil
 }
 
+// // encryptData encrypts data based on its type
+// func encryptData(data models.Data, key string) (models.Data, error) {
+// 	var encryptedData string
+// 	var err error
+
+// 	switch v := data.Data.(type) {
+// 	case string:
+// 		encryptedData, err = Encrypt(v, key)
+// 	case models.LoginPassword:
+// 		encryptedData, err = Encrypt(fmt.Sprintf("%s|%s|%s", v.Title, v.Login, v.Password), key)
+// 	case models.TextNote:
+// 		encryptedData, err = Encrypt(fmt.Sprintf("%s|%s", v.Title, v.Text), key)
+// 	case models.BinaryData:
+// 		encryptedData, err = Encrypt(fmt.Sprintf("%s|%s", v.Title, base64.StdEncoding.EncodeToString(v.Data)), key)
+// 	case models.BankCard:
+// 		encryptedData, err = Encrypt(fmt.Sprintf("%s|%s|%s|%s", v.Title, v.CardNumber, v.ExpiryDate, v.Cvv), key)
+// 	default:
+// 		return models.Data{}, fmt.Errorf("unsupported data type: %T", v)
+// 	}
+
+// 	if err != nil {
+// 		return models.Data{}, err
+// 	}
+
+// 	return models.Data{
+// 		DataType: data.DataType,
+// 		Data:     encryptedData,
+// 	}, nil
+// }
+
+// // decryptData decrypts data based on its type
+// func decryptData(data models.Data, key string) (models.Data, error) {
+//     decryptedData, err := Decrypt(data.Data.(string), key)
+//     if err != nil {
+//         return models.Data{}, err
+//     }
+
+//     var result models.Data
+
+//     switch data.DataType {
+//     case models.DataTypeLoginPassword:
+//         parts := strings.Split(decryptedData, "|")
+//         if len(parts) == 3 {
+//             result = models.Data{
+//                 DataType: models.DataTypeLoginPassword,
+//                 Data: models.LoginPassword{
+//                     Title:    parts[0],
+//                     Login:    parts[1],
+//                     Password: parts[2],
+//                 },
+//             }
+//         }
+//     case models.DataTypeTextNote:
+//         parts := strings.Split(decryptedData, "|")
+//         if len(parts) == 2 {
+//             result = models.Data{
+//                 DataType: models.DataTypeTextNote,
+//                 Data: models.TextNote{
+//                     Title: parts[0],
+//                     Text:  parts[1],
+//                 },
+//             }
+//         }
+//     case models.DataTypeBinaryData:
+//         parts := strings.Split(decryptedData, "|")
+//         if len(parts) == 2 {
+//             decodedData, err := base64.StdEncoding.DecodeString(parts[1])
+//             if err != nil {
+//                 return models.Data{}, err
+//             }
+//             result = models.Data{
+//                 DataType: models.DataTypeBinaryData,
+//                 Data: models.BinaryData{
+//                     Title: parts[0],
+//                     Data:  decodedData,
+//                 },
+//             }
+//         }
+//     case models.DataTypeBankCard:
+//         parts := strings.Split(decryptedData, "|")
+//         if len(parts) == 4 {
+//             result = models.Data{
+//                 DataType: models.DataTypeBankCard,
+//                 Data: models.BankCard{
+//                     Title:      parts[0],
+//                     CardNumber: parts[1],
+//                     ExpiryDate: parts[2],
+//                     Cvv:        parts[3],
+//                 },
+//             }
+//         }
+//     default:
+//         return models.Data{}, fmt.Errorf("unsupported data type: %v", data.DataType)
+//     }
+
+//     return result, nil
+// }
+// // Encrypt encrypts data using the given key
+// func Encrypt(data, key string) (string, error) {
+//     key = adjustKeySize(key)
+//     block, err := aes.NewCipher([]byte(key))
+//     if err != nil {
+//         return "", err
+//     }
+
+//     gcm, err := cipher.NewGCM(block)
+//     if err != nil {
+//         return "", err
+//     }
+
+//     nonce := make([]byte, gcm.NonceSize())
+//     if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
+//         return "", err
+//     }
+
+//     ciphertext := gcm.Seal(nonce, nonce, []byte(data), nil)
+//     return base64.StdEncoding.EncodeToString(ciphertext), nil
+// }
+
+// // Decrypt decrypts data using the given key
+// func Decrypt(data, key string) (string, error) {
+//     key = adjustKeySize(key)
+//     block, err := aes.NewCipher([]byte(key))
+//     if err != nil {
+//         return "", err
+//     }
+
+//     gcm, err := cipher.NewGCM(block)
+//     if err != nil {
+//         return "", err
+//     }
+
+//     ciphertext, err := base64.StdEncoding.DecodeString(data)
+//     if err != nil {
+//         return "", err
+//     }
+
+//     nonceSize := gcm.NonceSize()
+//     if len(ciphertext) < nonceSize {
+//         return "", errors.New("ciphertext too short")
+//     }
+
+//     nonce, ciphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
+//     plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+//     if err != nil {
+//         return "", err
+//     }
+
+//     return string(plaintext), nil
+// }
+
+// // adjustKeySize adjusts the key size to be 16, 24, or 32 bytes
+// func adjustKeySize(key string) string {
+//     if len(key) < 16 {
+//         return fmt.Sprintf("%-16s", key)[:16]
+//     } else if len(key) < 24 {
+//         return fmt.Sprintf("%-24s", key)[:24]
+//     } else if len(key) < 32 {
+//         return fmt.Sprintf("%-32s", key)[:32]
+//     }
+//     return key[:32]
+// }
+
 func convertDataToPBDatas(d models.Data) *pb.Data {
 	switch d.DataType {
 	case models.DataTypeLoginPassword:
-		// Приводим d.Data к структуре LoginPassword
 		lp, ok := d.Data.(models.LoginPassword)
 		if !ok {
 			return nil

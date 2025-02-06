@@ -207,23 +207,23 @@ func (s *HandleServiceServer) SendData(ctx context.Context, req *pb.SendDataRequ
 func (s *HandleServiceServer) ReceiveData(req *pb.ReceiveDataRequest, stream grpc.ServerStreamingServer[pb.ReceiveDataResponse]) error {
 	s.logger.Info("ReceiveData handle called!")
 
-    md, ok := metadata.FromIncomingContext(stream.Context())
-    if !ok {
-        s.logger.Error("Failed to get metadata from context")
-        return status.Errorf(codes.Internal, "failed to get metadata from context")
-    }
+	md, ok := metadata.FromIncomingContext(stream.Context())
+	if !ok {
+		s.logger.Error("Failed to get metadata from context")
+		return status.Errorf(codes.Internal, "failed to get metadata from context")
+	}
 
-    token := md["authorization"]
-    if len(token) == 0 {
-        s.logger.Error("Missing token")
-        return status.Errorf(codes.Unauthenticated, "missing token")
-    }
+	token := md["authorization"]
+	if len(token) == 0 {
+		s.logger.Error("Missing token")
+		return status.Errorf(codes.Unauthenticated, "missing token")
+	}
 
-    userID, err := s.jwtService.UserIDFromToken(token[0])
-    if err != nil {
-        s.logger.Error("Failed to get user ID from token: " + err.Error())
-        return status.Errorf(codes.Unauthenticated, "invalid token userID")
-    }
+	userID, err := s.jwtService.UserIDFromToken(token[0])
+	if err != nil {
+		s.logger.Error("Failed to get user ID from token: " + err.Error())
+		return status.Errorf(codes.Unauthenticated, "invalid token userID")
+	}
 
 	dataList, err := s.serv.ReadData(stream.Context(), userID, models.DataType(req.DataType))
 	if err != nil {
@@ -253,25 +253,29 @@ func convertToPBData(data *models.Data) (*pb.Data, error) {
 	case models.DataTypeLoginPassword:
 		pbData.Data = &pb.Data_LoginPassword{
 			LoginPassword: &pb.LoginPassword{
-				Login:    data.LoginPassword.Username,
+				Title:    data.LoginPassword.Title,
+				Login:    data.LoginPassword.Login,
 				Password: data.LoginPassword.Password,
 			},
 		}
 	case models.DataTypeTextNote:
 		pbData.Data = &pb.Data_TextNote{
 			TextNote: &pb.TextNote{
-				Text: data.TextNote.Content,
+				Title: data.TextNote.Title,
+				Text:  data.TextNote.Content,
 			},
 		}
 	case models.DataTypeBinaryData:
 		pbData.Data = &pb.Data_BinaryData{
 			BinaryData: &pb.BinaryData{
-				Data: data.BinaryData.Data,
+				Title: data.BinaryData.Title,
+				Data:  data.BinaryData.Data,
 			},
 		}
 	case models.DataTypeBankCard:
 		pbData.Data = &pb.Data_BankCard{
 			BankCard: &pb.BankCard{
+				Title:      data.BankCard.Title,
 				CardNumber: data.BankCard.CardNumber,
 				ExpiryDate: data.BankCard.ExpiryDate,
 				Cvv:        data.BankCard.CVV,
@@ -287,19 +291,29 @@ func convertToPBData(data *models.Data) (*pb.Data, error) {
 func extractData(pbData *pb.Data) (models.Data, error) {
 	var data models.Data
 
+	if pbData == nil {
+		return models.Data{}, errors.New("data is empty")
+	}
+
 	switch pbData.DataType {
 	case pb.DataType_LOGIN_PASSWORD:
 		lp := pbData.GetLoginPassword()
+		if lp == nil {
+			return models.Data{}, errors.New("login password data is empty")
+		}
 		data = models.Data{
 			DataType: models.DataTypeLoginPassword,
 			LoginPassword: &models.LoginPassword{
 				Title:    lp.Title,
-				Username: lp.Login,
+				Login:    lp.Login,
 				Password: lp.Password,
 			},
 		}
 	case pb.DataType_TEXT_NOTE:
 		tn := pbData.GetTextNote()
+		if tn == nil {
+			return models.Data{}, errors.New("text note data is empty")
+		}
 		data = models.Data{
 			DataType: models.DataTypeTextNote,
 			TextNote: &models.TextNote{
@@ -309,6 +323,9 @@ func extractData(pbData *pb.Data) (models.Data, error) {
 		}
 	case pb.DataType_BINARY_DATA:
 		bd := pbData.GetBinaryData()
+		if bd == nil {
+			return models.Data{}, errors.New("binary data is empty")
+		}
 		data = models.Data{
 			DataType: models.DataTypeBinaryData,
 			BinaryData: &models.BinaryData{
@@ -318,6 +335,9 @@ func extractData(pbData *pb.Data) (models.Data, error) {
 		}
 	case pb.DataType_BANK_CARD:
 		bc := pbData.GetBankCard()
+		if bc == nil {
+			return models.Data{}, errors.New("bank card data is empty")
+		}
 		data = models.Data{
 			DataType: models.DataTypeBankCard,
 			BankCard: &models.BankCard{

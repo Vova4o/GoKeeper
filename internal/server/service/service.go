@@ -62,12 +62,14 @@ func (s *Service) RegisterUser(ctx context.Context, user models.User) (*models.U
 		return nil, err
 	}
 
-	accessToken, err := s.jwtService.CreateAccessToken(userID, time.Minute*60)
+	// TODO: move time to config
+	accessToken, err := s.jwtService.CreateAccessToken(userID, time.Minute*15)
 	if err != nil {
 		s.logger.Error("Failed to create access token: " + err.Error())
 		return nil, err
 	}
 
+	// TODO: move time to config
 	refreshToken, err := s.jwtService.CreateRefreshToken(userID, time.Hour*24*7)
 	if err != nil {
 		s.logger.Error("Failed to create refresh token: " + err.Error())
@@ -154,7 +156,7 @@ func (s *Service) AuthenticateUser(ctx context.Context, username string, passwor
 	}
 
 	// create access token
-	accessToken, err := s.jwtService.CreateAccessToken(user.UserID, time.Minute*60)
+	accessToken, err := s.jwtService.CreateAccessToken(user.UserID, time.Minute*15)
 	if err != nil {
 		s.logger.Error("Failed to create access token: " + err.Error())
 		return nil, err
@@ -243,7 +245,7 @@ func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (*model
 	}
 
 	// create new access token
-	accessToken, err := s.jwtService.CreateAccessToken(userID, time.Minute*60)
+	accessToken, err := s.jwtService.CreateAccessToken(userID, time.Minute*15)
 	if err != nil {
 		s.logger.Error("Failed to create access token: " + err.Error())
 		return nil, err

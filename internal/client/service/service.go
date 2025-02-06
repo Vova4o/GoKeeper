@@ -61,7 +61,6 @@ func (s *Service) AddRecord(ctx context.Context, data models.Data, synchronized 
 	s.logger.Info("Adding record to storage")
 
 	// TODO: add validation for data
-	
 
 	err := s.stor.AddRecord(ctx, data, synchronized)
 	if err != nil {

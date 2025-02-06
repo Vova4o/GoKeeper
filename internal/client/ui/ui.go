@@ -3,6 +3,8 @@ package ui
 import (
 	"context"
 	"log"
+	"os"
+	"strconv"
 
 	"goKeeperYandex/internal/client/models"
 	"goKeeperYandex/package/logger"
@@ -10,6 +12,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -187,7 +190,6 @@ func (u *UI) resetContent(leftContent, rightContent *fyne.Container) {
 	updateLeftContent([]fyne.CanvasObject{
 		widget.NewLabel("Сделайте выбор:"),
 		widget.NewButton("Банковские карты", func() {
-			u.logger.Info("Банковские карты")
 			updateRightContent([]fyne.CanvasObject{
 				widget.NewLabel("Банковские карты"),
 				u.showBankCards(),
@@ -205,30 +207,203 @@ func (u *UI) resetContent(leftContent, rightContent *fyne.Container) {
 			})
 		}),
 		widget.NewButton("Пароли", func() {
-			u.logger.Info("Пароли")
 			updateRightContent([]fyne.CanvasObject{
 				widget.NewLabel("Пароли"),
-				// Добавьте другие виджеты для отображения информации о паролях
+				u.showPasswords(),
+			})
+			updateLeftContent([]fyne.CanvasObject{
+				widget.NewLabel("Добавить логин и пароль:"),
+				widget.NewButton("Добавить", func() {
+					u.logger.Info("Добавить логин и пароль")
+					u.openAddPasswordWindow()
+				}),
+				widget.NewButton("Назад", func() {
+					u.logger.Info("Назад")
+					u.resetContent(leftContent, rightContent)
+				}),
 			})
 		}),
 		widget.NewButton("Заметки", func() {
-			u.logger.Info("Заметки")
 			updateRightContent([]fyne.CanvasObject{
 				widget.NewLabel("Заметки"),
-				// Добавьте другие виджеты для отображения информации о заметках
+				u.showTextNotes(),
+			})
+			updateLeftContent([]fyne.CanvasObject{
+				widget.NewLabel("Добавить заметку:"),
+				widget.NewButton("Добавить", func() {
+					u.logger.Info("Добавить заметку")
+					u.openTextWindow("Заметка", "")
+				}),
+				widget.NewButton("Назад", func() {
+					u.logger.Info("Назад")
+					u.resetContent(leftContent, rightContent)
+				}),
 			})
 		}),
 		widget.NewButton("Файлы", func() {
 			u.logger.Info("Файлы")
 			updateRightContent([]fyne.CanvasObject{
 				widget.NewLabel("Файлы"),
-				// Добавьте другие виджеты для отображения информации о файлах
+				u.showBinaryFiles(),
+			})
+			updateLeftContent([]fyne.CanvasObject{
+				widget.NewLabel("Добавить файл:"),
+				widget.NewButton("Добавить", func() {
+					u.logger.Info("Добавить файл")
+					u.openAddBinaryFileWindow()
+				}),
+				widget.NewButton("Назад", func() {
+					u.logger.Info("Назад")
+					u.resetContent(leftContent, rightContent)
+				}),
 			})
 		}),
 	})
 	updateRightContent([]fyne.CanvasObject{
 		widget.NewLabel("Содержимое:"),
 	})
+}
+
+func (u *UI) openAddPasswordWindow() {
+	newWindow := fyne.CurrentApp().NewWindow("Добавить пароль")
+	newWindow.Resize(fyne.NewSize(400, 200))
+
+	titleEntry := widget.NewEntry()
+	titleEntry.SetPlaceHolder("Название пароля (пример: Google)")
+
+	loginEntry := widget.NewEntry()
+	loginEntry.SetPlaceHolder("Логин")
+
+	passwordEntry := widget.NewPasswordEntry()
+	passwordEntry.SetPlaceHolder("Пароль")
+
+	saveButton := widget.NewButton("Сохранить", func() {
+		u.logger.Info("Сохраняем пароль: " + titleEntry.Text)
+		err := u.handler.AddDataToServer(u.ctx, models.Data{
+			DataType: models.DataTypeLoginPassword,
+			Data: models.LoginPassword{
+				Title:    titleEntry.Text,
+				Login:    loginEntry.Text,
+				Password: passwordEntry.Text,
+			},
+		})
+		if err != nil {
+			log.Println("Failed to add password:", err)
+			u.showMainWindow(fyne.CurrentApp())
+		}
+		newWindow.Close()
+	})
+
+	form := container.NewVBox(
+		widget.NewLabel("Введите данные пароля:"),
+		titleEntry,
+		loginEntry,
+		passwordEntry,
+		saveButton,
+	)
+
+	newWindow.SetContent(form)
+	newWindow.Show()
+}
+
+func (u *UI) showPasswords() fyne.CanvasObject {
+	u.logger.Info("Получаем пароли")
+	// Получаем данные о паролях с сервера
+	dataFromServer, err := u.handler.GetDataFromServer(u.ctx, models.DataTypeLoginPassword)
+	if err != nil {
+		u.logger.Error("Failed to get passwords from server")
+		return widget.NewLabel("Failed to get passwords from server: " + err.Error())
+	}
+
+	var passwords []models.LoginPassword
+	for _, data := range dataFromServer {
+		if password, ok := data.Data.(models.LoginPassword); ok {
+			passwords = append(passwords, password)
+		}
+	}
+
+	if len(passwords) == 0 {
+		return widget.NewLabel("No passwords found")
+	}
+
+	// Создаем список виджетов для отображения паролей
+	var passwordsWidgets []fyne.CanvasObject
+	for _, password := range passwords {
+		passwordsWidgets = append(passwordsWidgets, widget.NewLabel("Сервис: "+password.Title))
+		passwordsWidgets = append(passwordsWidgets, widget.NewLabel("Логин: "+password.Login))
+		passwordsWidgets = append(passwordsWidgets, widget.NewLabel("Пароль: "+password.Password))
+		passwordsWidgets = append(passwordsWidgets, widget.NewSeparator())
+	}
+
+	return container.NewVBox(passwordsWidgets...)
+}
+
+func (u *UI) openTextWindow(title, text string) {
+	newWindow := fyne.CurrentApp().NewWindow(title)
+	newWindow.Resize(fyne.NewSize(400, 200))
+
+	titleEntryTitle := widget.NewEntry()
+	titleEntryTitle.SetText(title)
+
+	textEntry := widget.NewMultiLineEntry()
+	textEntry.SetText(text)
+
+	saveButton := widget.NewButton("Сохранить", func() {
+		u.logger.Info("Сохраняем текст: " + textEntry.Text)
+		err := u.handler.AddDataToServer(u.ctx, models.Data{
+			DataType: models.DataTypeTextNote,
+			Data: models.TextNote{
+				Title: titleEntryTitle.Text,
+				Text:  textEntry.Text,
+			},
+		})
+		if err != nil {
+			log.Println("Failed to add text:", err)
+			u.showMainWindow(fyne.CurrentApp())
+		}
+		newWindow.Close()
+	})
+
+	form := container.NewVBox(
+		widget.NewLabel("Введите текст:"),
+		titleEntryTitle,
+		textEntry,
+		saveButton,
+	)
+
+	newWindow.SetContent(form)
+	newWindow.Show()
+}
+
+func (u *UI) showTextNotes() fyne.CanvasObject {
+	u.logger.Info("Получаем заметки")
+	// Получаем данные о заметках с сервера
+	dataFromServer, err := u.handler.GetDataFromServer(u.ctx, models.DataTypeTextNote)
+	if err != nil {
+		u.logger.Error("Failed to get text notes from server")
+		return widget.NewLabel("Failed to get text notes from server: " + err.Error())
+	}
+
+	var textNotes []models.TextNote
+	for _, data := range dataFromServer {
+		if textNote, ok := data.Data.(models.TextNote); ok {
+			textNotes = append(textNotes, textNote)
+		}
+	}
+
+	if len(textNotes) == 0 {
+		return widget.NewLabel("No text notes found")
+	}
+
+	// Создаем список виджетов для отображения заметок
+	var textNotesWidgets []fyne.CanvasObject
+	for _, note := range textNotes {
+		textNotesWidgets = append(textNotesWidgets, widget.NewLabel("Заметка: "+note.Title))
+		textNotesWidgets = append(textNotesWidgets, widget.NewLabel("Текст: "+note.Text))
+		textNotesWidgets = append(textNotesWidgets, widget.NewSeparator())
+	}
+
+	return container.NewVBox(textNotesWidgets...)
 }
 
 // openAddBankCardWindow открывает новое окно с полями для ввода данных банковской карты
@@ -290,19 +465,20 @@ func (u *UI) showBankCards() fyne.CanvasObject {
 	}
 
 	var bankCards []models.BankCard
-    for _, data := range dataFromServer {
-        if bankCard, ok := data.Data.(models.BankCard); ok {
-            bankCards = append(bankCards, bankCard)
-        }
-    }
+	for _, data := range dataFromServer {
+		if bankCard, ok := data.Data.(models.BankCard); ok {
+			bankCards = append(bankCards, bankCard)
+		}
+	}
 
-    if len(bankCards) == 0 {
-        return widget.NewLabel("No bank cards found")
-    }
+	if len(bankCards) == 0 {
+		return widget.NewLabel("No bank cards found")
+	}
 
 	// Создаем список виджетов для отображения банковских карт
 	var bankCardsWidgets []fyne.CanvasObject
 	for _, card := range bankCards {
+		bankCardsWidgets = append(bankCardsWidgets, widget.NewLabel("Банк: "+card.Title))
 		bankCardsWidgets = append(bankCardsWidgets, widget.NewLabel("Карта: "+card.CardNumber))
 		bankCardsWidgets = append(bankCardsWidgets, widget.NewLabel("Срок действия: "+card.ExpiryDate))
 		bankCardsWidgets = append(bankCardsWidgets, widget.NewLabel("CVV: "+card.Cvv))
@@ -310,4 +486,119 @@ func (u *UI) showBankCards() fyne.CanvasObject {
 	}
 
 	return container.NewVBox(bankCardsWidgets...)
+}
+
+// openAddBinaryFileWindow открывает новое окно для выбора и сохранения бинарного файла
+func (u *UI) openAddBinaryFileWindow() {
+	newWindow := fyne.CurrentApp().NewWindow("Добавить бинарный файл")
+	newWindow.Resize(fyne.NewSize(400, 200))
+
+	titleEntry := widget.NewEntry()
+	titleEntry.SetPlaceHolder("Название файла")
+
+	filePathEntry := widget.NewEntry()
+	filePathEntry.SetPlaceHolder("Путь к файлу")
+
+	selectFileButton := widget.NewButton("Выбрать файл", func() {
+		dialog := dialog.NewFileOpen(func(reader fyne.URIReadCloser, err error) {
+			if err != nil {
+				log.Println("Failed to open file:", err)
+				return
+			}
+			if reader == nil {
+				return
+			}
+			filePathEntry.SetText(reader.URI().Path())
+		}, newWindow)
+		dialog.Show()
+	})
+
+	saveButton := widget.NewButton("Сохранить", func() {
+		u.logger.Info("Сохраняем файл: " + titleEntry.Text)
+		filePath := filePathEntry.Text
+		fileData, err := os.ReadFile(filePath)
+		if err != nil {
+			log.Println("Failed to read file:", err)
+			return
+		}
+
+		err = u.handler.AddDataToServer(u.ctx, models.Data{
+			DataType: models.DataTypeBinaryData,
+			Data: models.BinaryData{
+				Title: titleEntry.Text,
+				Data:  fileData,
+			},
+		})
+		if err != nil {
+			log.Println("Failed to add binary file:", err)
+			u.showMainWindow(fyne.CurrentApp())
+		}
+		newWindow.Close()
+	})
+
+	form := container.NewVBox(
+		widget.NewLabel("Введите данные файла:"),
+		titleEntry,
+		filePathEntry,
+		selectFileButton,
+		saveButton,
+	)
+
+	newWindow.SetContent(form)
+	newWindow.Show()
+}
+
+// showBinaryFiles отображает список бинарных файлов
+func (u *UI) showBinaryFiles() fyne.CanvasObject {
+	u.logger.Info("Получаем бинарные файлы")
+	// Получаем данные о бинарных файлах с сервера
+	dataFromServer, err := u.handler.GetDataFromServer(u.ctx, models.DataTypeBinaryData)
+	if err != nil {
+		u.logger.Error("Failed to get binary files from server")
+		return widget.NewLabel("Failed to get binary files from server: " + err.Error())
+	}
+
+	var binaryFiles []models.BinaryData
+	for _, data := range dataFromServer {
+		if binaryFile, ok := data.Data.(models.BinaryData); ok {
+			binaryFiles = append(binaryFiles, binaryFile)
+		}
+	}
+
+	if len(binaryFiles) == 0 {
+		return widget.NewLabel("No binary files found")
+	}
+
+	// Создаем список виджетов для отображения бинарных файлов
+	var binaryFilesWidgets []fyne.CanvasObject
+	for _, file := range binaryFiles {
+		file := file // захват переменной
+		binaryFilesWidgets = append(binaryFilesWidgets, widget.NewLabel("Файл: "+file.Title))
+		binaryFilesWidgets = append(binaryFilesWidgets, widget.NewLabel("Размер: "+strconv.Itoa(len(file.Data))+" байт"))
+		saveButton := widget.NewButton("Сохранить", func() {
+			dialog := dialog.NewFileSave(func(writer fyne.URIWriteCloser, err error) {
+				if err != nil {
+					log.Println("Failed to save file:", err)
+					return
+				}
+				if writer == nil {
+					return
+				}
+				defer writer.Close()
+
+				_, err = writer.Write(file.Data)
+				if err != nil {
+					log.Println("Failed to write file:", err)
+					return
+				}
+				u.logger.Info("Файл сохранен: " + writer.URI().Path())
+			}, fyne.CurrentApp().Driver().AllWindows()[0])
+			dialog.SetFileName(file.Title)
+			dialog.Show()
+		})
+		binaryFilesWidgets = append(binaryFilesWidgets, saveButton)
+		binaryFilesWidgets = append(binaryFilesWidgets, widget.NewSeparator())
+	}
+
+	return container.NewVBox(binaryFilesWidgets...)
 }

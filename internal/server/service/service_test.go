@@ -76,14 +76,15 @@ func (m *MockStorager) DeleteRefreshToken(ctx context.Context, token string) err
 	return args.Error(0)
 }
 
-func (m *MockStorager) SaveData(ctx context.Context, userID int, data models.Data) error {
-	args := m.Called(ctx, userID, data)
+// Mock method for SaveData
+func (m *MockStorager) SaveData(ctx context.Context, userID int, dataType models.DataType, data string) error {
+	args := m.Called(ctx, userID, dataType, data)
 	return args.Error(0)
 }
 
-func (m *MockStorager) ReadData(ctx context.Context, userID int) ([]*models.Data, error) {
-	args := m.Called(ctx, userID)
-	if data, ok := args.Get(0).([]*models.Data); ok {
+func (m *MockStorager) ReadData(ctx context.Context, userID int, dataType models.DataType) ([]*models.PrivateInfo, error) {
+	args := m.Called(ctx, userID, dataType)
+	if data, ok := args.Get(0).([]*models.PrivateInfo); ok {
 		return data, args.Error(1)
 	}
 	return nil, args.Error(1)

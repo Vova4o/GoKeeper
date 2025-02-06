@@ -28,7 +28,7 @@ func main() {
 	logger := logger.NewLogger("info")
 	logger.Info("Welcome to the client!")
 
-	stor, err := storage.NewStorage(dbName,logger)
+	stor, err := storage.NewStorage(dbName, logger)
 	if err != nil {
 		log.Fatalf("Failed to create storage: %v", err)
 	}

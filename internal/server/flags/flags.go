@@ -15,6 +15,8 @@ type Settings struct {
 	Secret   string
 	Issuer   string
 	DSN      string
+	AccessTokenDurationMinutes int
+	RefreshTokenDurationDays int
 }
 
 // NewSettings creates a new settings instance
@@ -31,6 +33,8 @@ func (s *Settings) LoadConfig() {
 	viper.SetDefault("secret", "your-secret-key")
 	viper.SetDefault("issuer", "your-issuer")
 	viper.SetDefault("dsn", "host=localhost user=postgres password=password dbname=goKeeper sslmode=disable")
+	viper.SetDefault("access_token_duration_minutes", 15)
+	viper.SetDefault("refresh_token_duration_days", 7)
 	// dsn: "host=db user=postgres password=password dbname=goKeeper sslmode=disable"
 
 	// Определение флагов командной строки
@@ -40,6 +44,8 @@ func (s *Settings) LoadConfig() {
 	pflag.StringP("secret", "S", "", "JWT secret key")
 	pflag.StringP("issuer", "I", "", "JWT issuer")
 	pflag.StringP("dsn", "D", "", "Data source name")
+	pflag.IntP("access_token_duration_minutes", "A", 0, "Access token duration in minutes")
+	pflag.IntP("refresh_token_duration_days", "R", 0, "Refresh token duration in days")
 
 	// Парсинг флагов
 	pflag.Parse()
@@ -58,6 +64,18 @@ func (s *Settings) LoadConfig() {
 	s.Secret = viper.GetString("secret")
 	s.Issuer = viper.GetString("issuer")
 	s.DSN = viper.GetString("dsn")
+	s.AccessTokenDurationMinutes = viper.GetInt("access_token_duration_minutes")
+	s.RefreshTokenDurationDays = viper.GetInt("refresh_token_duration_days")
+}
+
+// GetAccessTokenDurationMinutes returns the access token duration in minutes
+func (s *Settings) GetAccessTokenDurationMinutes() int {
+	return s.AccessTokenDurationMinutes
+}
+
+// GetRefreshTokenDurationDays returns the refresh token duration in days
+func (s *Settings) GetRefreshTokenDurationDays() int {
+	return s.RefreshTokenDurationDays
 }
 
 // GetHost returns the server host

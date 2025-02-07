@@ -6,7 +6,6 @@ linters:
     - gosimple
     - unused
     - ineffassign
-    - deadcode
     - typecheck
     - gofmt
     - goimports

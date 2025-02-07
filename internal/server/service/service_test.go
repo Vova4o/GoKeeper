@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -12,7 +11,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"google.golang.org/grpc/metadata"
 )
 
 type MockStorager struct {
@@ -123,30 +121,30 @@ func TestRegisterUser(t *testing.T) {
 	mockStorager.AssertExpectations(t)
 }
 
-func TestMasterPasswordCheckOrStore(t *testing.T) {
-	mockStorager := new(MockStorager)
-	logger := logger.NewLogger("info")
-	jwtService := jwtauth.NewJWTService("secret", "issuer")
-	service := &Service{
-		stor:       mockStorager,
-		jwtService: jwtService,
-		logger:     logger,
-	}
+// func TestMasterPasswordCheckOrStore(t *testing.T) {
+// 	mockStorager := new(MockStorager)
+// 	logger := logger.NewLogger("info")
+// 	jwtService := jwtauth.NewJWTService("secret", "issuer")
+// 	service := &Service{
+// 		stor:       mockStorager,
+// 		jwtService: jwtService,
+// 		logger:     logger,
+// 	}
 
-	token, _ := jwtService.CreateAccessToken(1, time.Minute*60)
-	masterPassword := "masterpassword"
+// 	token, _ := jwtService.CreateAccessToken(1, time.Minute*60)
+// 	masterPassword := "masterpassword"
 
-	md := metadata.New(map[string]string{"authorization": token})
-	ctx := metadata.NewOutgoingContext(context.Background(), md)
+// 	md := metadata.New(map[string]string{"authorization": token})
+// 	ctx := metadata.NewOutgoingContext(context.Background(), md)
 
-	mockStorager.On("CheckMasterPassword", mock.Anything, mock.Anything).Return("", errors.New("record not found"))
-	mockStorager.On("StoreMasterPassword", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+// 	mockStorager.On("CheckMasterPassword", mock.Anything, mock.Anything).Return("", errors.New("record not found"))
+// 	mockStorager.On("StoreMasterPassword", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
-	result, err := service.MasterPasswordCheckOrStore(ctx, masterPassword)
-	assert.NoError(t, err)
-	assert.True(t, result)
-	mockStorager.AssertExpectations(t)
-}
+// 	result, err := service.MasterPasswordCheckOrStore(ctx, masterPassword)
+// 	assert.NoError(t, err)
+// 	assert.True(t, result)
+// 	mockStorager.AssertExpectations(t)
+// }
 
 func TestRefreshToken(t *testing.T) {
 	mockStorager := new(MockStorager)

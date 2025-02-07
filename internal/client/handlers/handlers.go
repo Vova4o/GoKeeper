@@ -17,7 +17,7 @@ import (
 	"goKeeperYandex/package/logger"
 	pb "goKeeperYandex/protobuf/auth"
 
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt/v4"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"

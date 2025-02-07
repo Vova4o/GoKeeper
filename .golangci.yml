@@ -42,3 +42,8 @@ issues:
         - unconvert
         - misspell
         - gocritic
+    - path: ^protobuf/
+      linters:
+        - typecheck
+        - govet
+        - staticcheck

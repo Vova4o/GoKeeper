@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 
-	"goKeeperYandex/internal/client/models"
 	"goKeeperYandex/package/logger"
 )
 
@@ -16,8 +15,8 @@ type Service struct {
 
 // Storager interface
 type Storager interface {
-	AddRecord(ctx context.Context, data models.Data, synchronized bool) error
-	GetRecords(ctx context.Context) ([]models.Record, error)
+	// AddRecord(ctx context.Context, data models.Data, synchronized bool) error
+	// GetRecords(ctx context.Context) ([]models.Record, error)
 	AddOrReplaceRefreshToken(ctx context.Context, data string) error
 	GetRefreshToken(ctx context.Context) (string, error)
 }
@@ -56,30 +55,30 @@ func (s *Service) GetRefreshToken(ctx context.Context) (string, error) {
 	return token, nil
 }
 
-// AddRecord adds record to storage
-func (s *Service) AddRecord(ctx context.Context, data models.Data, synchronized bool) error {
-	s.logger.Info("Adding record to storage")
+// // AddRecord adds record to storage
+// func (s *Service) AddRecord(ctx context.Context, data models.Data, synchronized bool) error {
+// 	s.logger.Info("Adding record to storage")
 
-	// TODO: add validation for data
+// 	// TODO: add validation for data
 
-	err := s.stor.AddRecord(ctx, data, synchronized)
-	if err != nil {
-		log.Println("Failed to add record:", err)
-		return err
-	}
+// 	err := s.stor.AddRecord(ctx, data, synchronized)
+// 	if err != nil {
+// 		log.Println("Failed to add record:", err)
+// 		return err
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
-// GetRecords reads records from storage
-func (s *Service) GetRecords(ctx context.Context) ([]models.Record, error) {
-	s.logger.Info("Reading records from storage")
+// // GetRecords reads records from storage
+// func (s *Service) GetRecords(ctx context.Context) ([]models.Record, error) {
+// 	s.logger.Info("Reading records from storage")
 
-	records, err := s.stor.GetRecords(ctx)
-	if err != nil {
-		log.Println("Failed to get records:", err)
-		return nil, err
-	}
+// 	records, err := s.stor.GetRecords(ctx)
+// 	if err != nil {
+// 		log.Println("Failed to get records:", err)
+// 		return nil, err
+// 	}
 
-	return records, nil
-}
+// 	return records, nil
+// }

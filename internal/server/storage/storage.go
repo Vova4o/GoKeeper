@@ -18,24 +18,73 @@ type Storage struct {
 	logger *logger.Logger
 }
 
-// NewStorage создает новый экземпляр хранилища
+// NewStorage function creates new storage instance
 func NewStorage(ctx context.Context, connString string, logger *logger.Logger) (*Storage, error) {
-	db, err := sql.Open("postgres", connString)
-	if err != nil {
-		return nil, err
-	}
+    db, err := sql.Open("postgres", connString)
+    if err != nil {
+        return nil, err
+    }
 
-	// Проверка соединения
-	if err := db.PingContext(ctx); err != nil {
-		logger.Error("Failed to connect to the database")
-		return nil, err
-	}
+    // Проверка соединения
+    if err := db.PingContext(ctx); err != nil {
+        logger.Error("Failed to connect to the database")
+        return nil, err
+    }
 
-	logger.Info("Connected to the database")
-	return &Storage{
-		db:     db,
-		logger: logger,
-	}, nil
+    storage := &Storage{
+        db:     db,
+        logger: logger,
+    }
+
+    // Создание необходимых таблиц
+    if err := storage.createTables(ctx); err != nil {
+        logger.Error("Failed to create tables: " + err.Error())
+        return nil, err
+    }
+
+    logger.Info("Connected to the database and tables created successfully")
+    return storage, nil
+}
+
+func (s *Storage) createTables(ctx context.Context) error {
+    queries := []string{
+        `CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            username VARCHAR(255) UNIQUE NOT NULL,
+            password_hash VARCHAR(255) NOT NULL,
+            master_password_hash VARCHAR(255),
+            created_at TIMESTAMP NOT NULL,
+            updated_at TIMESTAMP NOT NULL
+        )`,
+        `CREATE TABLE IF NOT EXISTS refresh_tokens (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER REFERENCES users(id),
+            token TEXT NOT NULL,
+            is_revoked BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP NOT NULL,
+            updated_at TIMESTAMP NOT NULL
+        )`,
+        `CREATE TABLE IF NOT EXISTS private_infos (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER REFERENCES users(id),
+            data_type INTEGER NOT NULL,
+            data TEXT NOT NULL,
+            created_at TIMESTAMP NOT NULL,
+            updated_at TIMESTAMP NOT NULL
+        )`,
+        `CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_private_infos_user_id ON private_infos(user_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_private_infos_data_type ON private_infos(data_type)`,
+    }
+
+    for _, query := range queries {
+        _, err := s.db.ExecContext(ctx, query)
+        if err != nil {
+            return err
+        }
+    }
+
+    return nil
 }
 
 // CreateUser создает нового пользователя

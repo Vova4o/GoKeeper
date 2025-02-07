@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 
-	"goKeeperYandex/internal/client/models"
 	"goKeeperYandex/package/logger"
 
 	// SQLite driver
@@ -36,14 +35,6 @@ func NewStorage(dbPath string, logger *logger.Logger) (*Storage, error) {
 
 	// Создание таблицы для хранения данных
 	createTableQuery := `
-    CREATE TABLE IF NOT EXISTS records (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        data_type TEXT,
-        data BLOB,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        synchronized BOOLEAN DEFAULT 0
-    );
-
 	CREATE TABLE IF NOT EXISTS refresh_tokens (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		token TEXT,
@@ -59,48 +50,48 @@ func NewStorage(dbPath string, logger *logger.Logger) (*Storage, error) {
 	return storage, nil
 }
 
-// AddRecord добавляет запись в базу данных
-func (s *Storage) AddRecord(ctx context.Context, data models.Data, synchronized bool) error {
-	insertQuery := `INSERT INTO records (data_type, data, synchronized) VALUES (?, ?, ?)`
-	_, err := s.db.ExecContext(ctx, insertQuery, data.DataType, data.Data, synchronized)
-	if err != nil {
-		s.logger.Error("Failed to insert record: " + err.Error())
-		return err
-	}
-	s.logger.Info("Record added successfully")
-	return nil
-}
+// // AddRecord добавляет запись в базу данных
+// func (s *Storage) AddRecord(ctx context.Context, data models.Data, synchronized bool) error {
+// 	insertQuery := `INSERT INTO records (data_type, data, synchronized) VALUES (?, ?, ?)`
+// 	_, err := s.db.ExecContext(ctx, insertQuery, data.DataType, data.Data, synchronized)
+// 	if err != nil {
+// 		s.logger.Error("Failed to insert record: " + err.Error())
+// 		return err
+// 	}
+// 	s.logger.Info("Record added successfully")
+// 	return nil
+// }
 
-// GetRecords читает записи из базы данных
-func (s *Storage) GetRecords(ctx context.Context) ([]models.Record, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT id, data_type, data, created_at, synchronized FROM records")
-	if err != nil {
-		s.logger.Error("Failed to read records: " + err.Error())
-		return nil, err
-	}
-	defer rows.Close()
+// // GetRecords читает записи из базы данных
+// func (s *Storage) GetRecords(ctx context.Context) ([]models.Record, error) {
+// 	rows, err := s.db.QueryContext(ctx, "SELECT id, data_type, data, created_at, synchronized FROM records")
+// 	if err != nil {
+// 		s.logger.Error("Failed to read records: " + err.Error())
+// 		return nil, err
+// 	}
+// 	defer rows.Close()
 
-	var records []models.Record
-	for rows.Next() {
-		var record models.Record
-		var dataType int
-		err := rows.Scan(&record.ID, &dataType, &record.Data.Data, &record.CreatedAt, &record.Synchronized)
-		if err != nil {
-			s.logger.Error("Failed to scan record: " + err.Error())
-			return nil, err
-		}
-		record.Data.DataType = models.DataTypes(dataType)
-		records = append(records, record)
-	}
+// 	var records []models.Record
+// 	for rows.Next() {
+// 		var record models.Record
+// 		var dataType int
+// 		err := rows.Scan(&record.ID, &dataType, &record.Data.Data, &record.CreatedAt, &record.Synchronized)
+// 		if err != nil {
+// 			s.logger.Error("Failed to scan record: " + err.Error())
+// 			return nil, err
+// 		}
+// 		record.Data.DataType = models.DataTypes(dataType)
+// 		records = append(records, record)
+// 	}
 
-	if err := rows.Err(); err != nil {
-		s.logger.Error("Rows error: " + err.Error())
-		return nil, err
-	}
+// 	if err := rows.Err(); err != nil {
+// 		s.logger.Error("Rows error: " + err.Error())
+// 		return nil, err
+// 	}
 
-	s.logger.Info("Records read successfully")
-	return records, nil
-}
+// 	s.logger.Info("Records read successfully")
+// 	return records, nil
+// }
 
 // AddOrReplaceRefreshToken добавляет или обновляет токен обновления в базе данных
 func (s *Storage) AddOrReplaceRefreshToken(ctx context.Context, data string) error {

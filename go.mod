@@ -3,6 +3,7 @@ module goKeeperYandex
 go 1.22
 
 require (
+	fyne.io/fyne v1.4.3
 	fyne.io/fyne/v2 v2.5.4
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible

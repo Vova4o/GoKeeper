@@ -40,8 +40,8 @@ type GRPCClient struct {
 type Servicer interface {
 	AddOrReplaceRefreshToken(ctx context.Context, data string) error
 	GetRefreshToken(ctx context.Context) (string, error)
-	AddRecord(ctx context.Context, data models.Data, synchronized bool) error
-	GetRecords(ctx context.Context) ([]models.Record, error)
+	// AddRecord(ctx context.Context, data models.Data, synchronized bool) error
+	// GetRecords(ctx context.Context) ([]models.Record, error)
 }
 
 // NewGRPCClient function for creating new client

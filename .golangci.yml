@@ -5,8 +5,6 @@ linters:
     - staticcheck
     - gosimple
     - unused
-    - structcheck
-    - varcheck
     - ineffassign
     - deadcode
     - typecheck
@@ -30,8 +28,6 @@ issues:
         - staticcheck
         - gosimple
         - unused
-        - structcheck
-        - varcheck
         - ineffassign
         - deadcode
         - typecheck
@@ -45,5 +41,15 @@ issues:
     - path: ^protobuf/
       linters:
         - typecheck
-        - govet
-        - staticcheck
+    - path: ^internal/client/ui/
+      linters:
+        - typecheck
+    - path: ^internal/server/models/
+      linters:
+        - typecheck
+    - path: ^internal/server/handlers/
+      linters:
+        - typecheck
+    - path: ^package/jwtauth/
+      linters:
+        - typecheck

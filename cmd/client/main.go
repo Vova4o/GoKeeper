@@ -44,13 +44,15 @@ func main() {
 
 	certData, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatalf("Failed to read certificate: %v", err)
+		log.Printf("Failed to read certificate: %v", err)
+		return
 	}
 
 	// Создание пула сертификатов
 	certPool := x509.NewCertPool()
 	if !certPool.AppendCertsFromPEM(certData) {
-		log.Fatalf("Failed to append certificate")
+		log.Printf("Failed to append certificate")
+		return
 	}
 
 	// Настройка TLS
@@ -64,7 +66,8 @@ func main() {
 	// Create new gRPC client for connection to server
 	grpcClient, err := handlers.NewGRPCClient(ctx, "localhost:50051", creds, logger, serv)
 	if err != nil {
-		log.Fatalf("Failed to create gRPC client: %v", err)
+		log.Printf("Failed to create gRPC client: %v", err)
+		return
 	}
 
 	// Create new UI instance

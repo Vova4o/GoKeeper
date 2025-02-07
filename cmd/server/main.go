@@ -58,8 +58,7 @@ func main() {
 	stor, err := storage.NewStorage(ctx, settings.DSN, logger)
 	if err != nil {
 		log.Printf("failed to create storage: %v", err)
-		cancel()
-		os.Exit(1)
+		return
 	}
 
 	jwtService := jwtauth.NewJWTService(settings.Secret, settings.Issuer)
@@ -93,7 +92,8 @@ func main() {
 
 	log.Println("gRPC server is running on port", port)
 	if err := s.Serve(lis); err != nil {
-		log.Fatalf("failed to serve: %v", err)
+		log.Printf("failed to serve: %v", err)
+		return
 	}
 }
 

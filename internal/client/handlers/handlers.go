@@ -17,7 +17,7 @@ import (
 	"goKeeperYandex/package/logger"
 	pb "goKeeperYandex/protobuf/auth"
 
-	"github.com/golang-jwt/jwt/v4"
+	jwtpac "github.com/golang-jwt/jwt/v4"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -157,14 +157,14 @@ func (c *GRPCClient) CheckAndRefreshToken(ctx context.Context) error {
 	c.log.Info("CheckAndRefreshToken called!")
 
 	// Парсинг токена без проверки подписи
-	token, _, err := new(jwt.Parser).ParseUnverified(c.AccessToken, jwt.MapClaims{})
+	token, _, err := new(jwtpac.Parser).ParseUnverified(c.AccessToken, jwtpac.MapClaims{})
 	if err != nil {
 		c.log.Error("Error parsing token")
 		return status.Errorf(codes.Unauthenticated, "invalid access token")
 	}
 
 	// Извлечение утверждений (claims)
-	claims, ok := token.Claims.(jwt.MapClaims)
+	claims, ok := token.Claims.(jwtpac.MapClaims)
 	if !ok {
 		c.log.Error("Invalid token claims")
 		return status.Errorf(codes.Unauthenticated, "invalid access token")

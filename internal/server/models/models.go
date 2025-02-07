@@ -22,6 +22,12 @@ type ContextKey struct {
 	name string
 }
 
+// DataToPass type that pssing data to the server to save and from the server to the client to show
+type DataToPass struct {
+	DataType DataType
+	Data     string
+}
+
 // UserIDKey is a key for user id in context
 var UserIDKey = ContextKey{"user_id"}
 

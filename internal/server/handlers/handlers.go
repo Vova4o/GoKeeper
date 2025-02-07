@@ -38,8 +38,8 @@ type Servicer interface {
 	MasterPasswordCheckOrStore(ctx context.Context, masterPassword string) (bool, error)
 	AuthenticateUser(ctx context.Context, username, password string) (*models.UserRegesred, error)
 	RefreshToken(ctx context.Context, refreshToken string) (*models.UserRegesred, error)
-	RecordData(ctx context.Context, userID int, data models.Data) error
-	ReadData(ctx context.Context, userID int, dataType models.DataType) ([]*models.Data, error)
+	RecordData(ctx context.Context, userID int, data models.DataToPass) error
+	ReadData(ctx context.Context, userID int, dataType models.DataType) ([]*models.DataToPass, error)
 }
 
 // JWTServicer interface for JWT service methods
@@ -187,14 +187,12 @@ func (s *HandleServiceServer) SendData(ctx context.Context, req *pb.SendDataRequ
 		return nil, status.Errorf(codes.Internal, "failed to get user ID from context")
 	}
 
-	// Перемещаем логику извлечения данных на уровень сервиса
-	data, err := extractData(req.Data)
-	if err != nil {
-		s.logger.Error("Failed to extract data: " + err.Error())
-		return nil, status.Errorf(codes.InvalidArgument, "failed to extract data")
+	dataToPass := models.DataToPass{
+		DataType: models.DataType(req.Data.DataType),
+		Data:     req.Data.StringData,
 	}
 
-	err = s.serv.RecordData(ctx, userID, data)
+	err := s.serv.RecordData(ctx, userID, dataToPass)
 	if err != nil {
 		s.logger.Error("Failed to record data: " + err.Error())
 		return nil, status.Errorf(codes.Internal, "failed to record data")
@@ -204,7 +202,7 @@ func (s *HandleServiceServer) SendData(ctx context.Context, req *pb.SendDataRequ
 }
 
 // ReceiveData method for sending data to client
-func (s *HandleServiceServer) ReceiveData(req *pb.ReceiveDataRequest, stream grpc.ServerStreamingServer[pb.ReceiveDataResponse]) error {
+func (s *HandleServiceServer) ReceiveData(req *pb.ReceiveDataRequest, stream pb.AuthService_ReceiveDataServer) error {
 	s.logger.Info("ReceiveData handle called!")
 
 	md, ok := metadata.FromIncomingContext(stream.Context())
@@ -232,10 +230,11 @@ func (s *HandleServiceServer) ReceiveData(req *pb.ReceiveDataRequest, stream grp
 	}
 
 	for _, data := range dataList {
-		pbData, err := convertToPBData(data)
-		if err != nil {
-			return status.Errorf(codes.Internal, "failed to convert data: %v", err)
+		pbData := &pb.DataToPass{
+			DataType:   pb.DataType(data.DataType),
+			StringData: data.Data,
 		}
+
 		if err := stream.Send(&pb.ReceiveDataResponse{Data: pbData}); err != nil {
 			return status.Errorf(codes.Internal, "failed to send data: %v", err)
 		}
@@ -244,112 +243,132 @@ func (s *HandleServiceServer) ReceiveData(req *pb.ReceiveDataRequest, stream grp
 	return nil
 }
 
-// convertToPBData function for converting models.Data to pb.Data
-func convertToPBData(data *models.Data) (*pb.Data, error) {
-	pbData := &pb.Data{
-		DataType: pb.DataType(data.DataType),
-	}
-	switch data.DataType {
-	case models.DataTypeLoginPassword:
-		pbData.Data = &pb.Data_LoginPassword{
-			LoginPassword: &pb.LoginPassword{
-				Title:    data.LoginPassword.Title,
-				Login:    data.LoginPassword.Login,
-				Password: data.LoginPassword.Password,
-			},
-		}
-	case models.DataTypeTextNote:
-		pbData.Data = &pb.Data_TextNote{
-			TextNote: &pb.TextNote{
-				Title: data.TextNote.Title,
-				Text:  data.TextNote.Content,
-			},
-		}
-	case models.DataTypeBinaryData:
-		pbData.Data = &pb.Data_BinaryData{
-			BinaryData: &pb.BinaryData{
-				Title: data.BinaryData.Title,
-				Data:  data.BinaryData.Data,
-			},
-		}
-	case models.DataTypeBankCard:
-		pbData.Data = &pb.Data_BankCard{
-			BankCard: &pb.BankCard{
-				Title:      data.BankCard.Title,
-				CardNumber: data.BankCard.CardNumber,
-				ExpiryDate: data.BankCard.ExpiryDate,
-				Cvv:        data.BankCard.CVV,
-			},
-		}
-	default:
-		return nil, errors.New("unsupported data type")
-	}
-	return pbData, nil
+// convertToPBData function for converting models.Data to pb.DataToPass
+func convertToPBData(data *models.DataToPass) (*pb.DataToPass, error) {
+	return &pb.DataToPass{
+		DataType:   pb.DataType(data.DataType),
+		StringData: data.Data,
+	}, nil
 }
 
 // extractData извлекает данные из protobuf сообщения и преобразует их в модель
-func extractData(pbData *pb.Data) (models.Data, error) {
-	var data models.Data
-
+func extractData(pbData *pb.DataToPass) (models.DataToPass, error) {
 	if pbData == nil {
-		return models.Data{}, errors.New("data is empty")
+		return models.DataToPass{}, errors.New("data is empty")
 	}
 
-	switch pbData.DataType {
-	case pb.DataType_LOGIN_PASSWORD:
-		lp := pbData.GetLoginPassword()
-		if lp == nil {
-			return models.Data{}, errors.New("login password data is empty")
-		}
-		data = models.Data{
-			DataType: models.DataTypeLoginPassword,
-			LoginPassword: &models.LoginPassword{
-				Title:    lp.Title,
-				Login:    lp.Login,
-				Password: lp.Password,
-			},
-		}
-	case pb.DataType_TEXT_NOTE:
-		tn := pbData.GetTextNote()
-		if tn == nil {
-			return models.Data{}, errors.New("text note data is empty")
-		}
-		data = models.Data{
-			DataType: models.DataTypeTextNote,
-			TextNote: &models.TextNote{
-				Title:   tn.Title,
-				Content: tn.Text,
-			},
-		}
-	case pb.DataType_BINARY_DATA:
-		bd := pbData.GetBinaryData()
-		if bd == nil {
-			return models.Data{}, errors.New("binary data is empty")
-		}
-		data = models.Data{
-			DataType: models.DataTypeBinaryData,
-			BinaryData: &models.BinaryData{
-				Title: bd.Title,
-				Data:  bd.Data,
-			},
-		}
-	case pb.DataType_BANK_CARD:
-		bc := pbData.GetBankCard()
-		if bc == nil {
-			return models.Data{}, errors.New("bank card data is empty")
-		}
-		data = models.Data{
-			DataType: models.DataTypeBankCard,
-			BankCard: &models.BankCard{
-				Title:      bc.Title,
-				CardNumber: bc.CardNumber,
-				ExpiryDate: bc.ExpiryDate,
-				CVV:        bc.Cvv,
-			},
-		}
-	default:
-		return models.Data{}, errors.New("unsupported data type")
-	}
-
-	return data, nil
+	return models.DataToPass{
+		DataType: models.DataType(pbData.DataType),
+		Data:     pbData.StringData,
+	}, nil
 }
+
+// // convertToPBData function for converting models.Data to pb.Data
+// func convertToPBData(data *models.Data) (*pb.Data, error) {
+// 	pbData := &pb.Data{
+// 		DataType: pb.DataType(data.DataType),
+// 	}
+// 	switch data.DataType {
+// 	case models.DataTypeLoginPassword:
+// 		pbData.Data = &pb.Data_LoginPassword{
+// 			LoginPassword: &pb.LoginPassword{
+// 				Title:    data.LoginPassword.Title,
+// 				Login:    data.LoginPassword.Login,
+// 				Password: data.LoginPassword.Password,
+// 			},
+// 		}
+// 	case models.DataTypeTextNote:
+// 		pbData.Data = &pb.Data_TextNote{
+// 			TextNote: &pb.TextNote{
+// 				Title: data.TextNote.Title,
+// 				Text:  data.TextNote.Content,
+// 			},
+// 		}
+// 	case models.DataTypeBinaryData:
+// 		pbData.Data = &pb.Data_BinaryData{
+// 			BinaryData: &pb.BinaryData{
+// 				Title: data.BinaryData.Title,
+// 				Data:  data.BinaryData.Data,
+// 			},
+// 		}
+// 	case models.DataTypeBankCard:
+// 		pbData.Data = &pb.Data_BankCard{
+// 			BankCard: &pb.BankCard{
+// 				Title:      data.BankCard.Title,
+// 				CardNumber: data.BankCard.CardNumber,
+// 				ExpiryDate: data.BankCard.ExpiryDate,
+// 				Cvv:        data.BankCard.CVV,
+// 			},
+// 		}
+// 	default:
+// 		return nil, errors.New("unsupported data type")
+// 	}
+// 	return pbData, nil
+// }
+
+// // extractData извлекает данные из protobuf сообщения и преобразует их в модель
+// func extractData(pbData *pb.Data) (models.Data, error) {
+// 	var data models.Data
+
+// 	if pbData == nil {
+// 		return models.Data{}, errors.New("data is empty")
+// 	}
+
+// 	switch pbData.DataType {
+// 	case pb.DataType_LOGIN_PASSWORD:
+// 		lp := pbData.GetLoginPassword()
+// 		if lp == nil {
+// 			return models.Data{}, errors.New("login password data is empty")
+// 		}
+// 		data = models.Data{
+// 			DataType: models.DataTypeLoginPassword,
+// 			LoginPassword: &models.LoginPassword{
+// 				Title:    lp.Title,
+// 				Login:    lp.Login,
+// 				Password: lp.Password,
+// 			},
+// 		}
+// 	case pb.DataType_TEXT_NOTE:
+// 		tn := pbData.GetTextNote()
+// 		if tn == nil {
+// 			return models.Data{}, errors.New("text note data is empty")
+// 		}
+// 		data = models.Data{
+// 			DataType: models.DataTypeTextNote,
+// 			TextNote: &models.TextNote{
+// 				Title:   tn.Title,
+// 				Content: tn.Text,
+// 			},
+// 		}
+// 	case pb.DataType_BINARY_DATA:
+// 		bd := pbData.GetBinaryData()
+// 		if bd == nil {
+// 			return models.Data{}, errors.New("binary data is empty")
+// 		}
+// 		data = models.Data{
+// 			DataType: models.DataTypeBinaryData,
+// 			BinaryData: &models.BinaryData{
+// 				Title: bd.Title,
+// 				Data:  bd.Data,
+// 			},
+// 		}
+// 	case pb.DataType_BANK_CARD:
+// 		bc := pbData.GetBankCard()
+// 		if bc == nil {
+// 			return models.Data{}, errors.New("bank card data is empty")
+// 		}
+// 		data = models.Data{
+// 			DataType: models.DataTypeBankCard,
+// 			BankCard: &models.BankCard{
+// 				Title:      bc.Title,
+// 				CardNumber: bc.CardNumber,
+// 				ExpiryDate: bc.ExpiryDate,
+// 				CVV:        bc.Cvv,
+// 			},
+// 		}
+// 	default:
+// 		return models.Data{}, errors.New("unsupported data type")
+// 	}
+
+// 	return data, nil
+// }

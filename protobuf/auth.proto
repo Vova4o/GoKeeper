@@ -68,6 +68,11 @@ message Data {
   }
 }
 
+message DataToPass {
+  DataType dataType = 1;
+  string stringData = 2;
+}
+
 message LoginPassword {
   string title = 1;
   string login = 2;
@@ -93,7 +98,7 @@ message BankCard {
 }
 
 message SendDataRequest {
-  Data data = 2;
+  DataToPass data = 1;
 }
 
 message SendDataResponse {
@@ -105,5 +110,5 @@ message ReceiveDataRequest {
 }
 
 message ReceiveDataResponse {
-  Data data = 1;
+  DataToPass data = 1;
 }

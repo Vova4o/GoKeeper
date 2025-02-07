@@ -3,9 +3,7 @@ package service
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"strconv"
 	"time"
 
@@ -277,7 +275,7 @@ func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (*model
 }
 
 // RecordData записывает данные
-func (s *Service) RecordData(ctx context.Context, userID int, data models.Data) error {
+func (s *Service) RecordData(ctx context.Context, userID int, data models.DataToPass) error {
 	// check if user exists
 	_, err := s.stor.FindUserByID(ctx, userID)
 	if err != nil {
@@ -285,24 +283,8 @@ func (s *Service) RecordData(ctx context.Context, userID int, data models.Data) 
 		return err
 	}
 
-	fmt.Println("Data type: ", data.DataType)
-	// Вывод данных в формате JSON для удобства
-	dataJSON, err := json.MarshalIndent(data, "", "  ")
-	if err != nil {
-		s.logger.Error("Failed to marshal data to JSON: " + err.Error())
-		return err
-	}
-	fmt.Println("Data: ", string(dataJSON))
-
-	// Сериализация данных
-	dataStr, err := models.SerializeData(data)
-	if err != nil {
-		s.logger.Error("Failed to serialize data: " + err.Error())
-		return err
-	}
-
 	// Сохранение данных в базу данных (пример)
-	err = s.stor.SaveData(ctx, userID, data.DataType, dataStr)
+	err = s.stor.SaveData(ctx, userID, data.DataType, data.Data)
 	if err != nil {
 		s.logger.Error("Failed to save data: " + err.Error())
 		return err
@@ -312,7 +294,7 @@ func (s *Service) RecordData(ctx context.Context, userID int, data models.Data) 
 }
 
 // ReadData читает данные по типу
-func (s *Service) ReadData(ctx context.Context, userID int, dataType models.DataType) ([]*models.Data, error) {
+func (s *Service) ReadData(ctx context.Context, userID int, dataType models.DataType) ([]*models.DataToPass, error) {
 	// check if user exists
 	_, err := s.stor.FindUserByID(ctx, userID)
 	if err != nil {
@@ -327,15 +309,12 @@ func (s *Service) ReadData(ctx context.Context, userID int, dataType models.Data
 		return nil, err
 	}
 
-	var dataList []*models.Data
+	var dataList []*models.DataToPass
 	for _, privateInfo := range privateInfos {
-		// Десериализация данных
-		data, err := models.DeserializeData(privateInfo.Data)
-		if err != nil {
-			s.logger.Error("Failed to deserialize data: " + err.Error())
-			return nil, err
-		}
-		dataList = append(dataList, &data)
+		dataList = append(dataList, &models.DataToPass{
+			DataType: dataType,
+			Data:     privateInfo.Data,
+		})
 	}
 
 	return dataList, nil

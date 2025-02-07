@@ -25,10 +25,21 @@ const (
 	DataTypeBankCard
 )
 
+// DataContent интерфейс для всех типов данных
+type DataContent interface {
+	isDataContent()
+}
+
 // Data структура для хранения данных
 type Data struct {
 	DataType DataTypes
-	Data     interface{}
+	Data     DataContent
+}
+
+// DataToPass структура для передачи данных между клиентом и сервером
+type DataToPass struct {
+	DataType  DataTypes
+	DataString string
 }
 
 // LoginPassword структура для хранения данных логина и пароля
@@ -38,17 +49,23 @@ type LoginPassword struct {
 	Password string
 }
 
+func (LoginPassword) isDataContent() {}
+
 // TextNote структура для хранения текстовой заметки
 type TextNote struct {
 	Title string
 	Text  string
 }
 
+func (TextNote) isDataContent() {}
+
 // BinaryData структура для хранения бинарных данных
 type BinaryData struct {
 	Title string
 	Data  []byte
 }
+
+func (BinaryData) isDataContent() {}
 
 // BankCard структура для хранения данных банковской карты
 type BankCard struct {
@@ -57,3 +74,5 @@ type BankCard struct {
 	ExpiryDate string
 	Cvv        string
 }
+
+func (BankCard) isDataContent() {}

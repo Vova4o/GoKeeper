@@ -21,7 +21,8 @@ jobs:
 
       - name: Install golangci-lint
         run: |
-          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.56.2
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.56.2
+          export PATH=$(go env GOPATH)/bin:$PATH
 
       - name: Run golangci-lint
         run: golangci-lint run
@@ -67,4 +68,4 @@ jobs:
           sudo apt-get install -y libgl1-mesa-dev xorg-dev
 
       - name: Run tests
-        run: go test ./...
+        run: go test -count=1 ./...

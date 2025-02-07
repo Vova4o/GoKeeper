@@ -489,14 +489,16 @@ func Decrypt(data, key string) (string, error) {
 
 // adjustKeySize adjusts the key size to be 16, 24, or 32 bytes
 func adjustKeySize(key string) string {
-	if len(key) < 16 {
+	switch {
+	case len(key) < 16:
 		return fmt.Sprintf("%-16s", key)[:16]
-	} else if len(key) < 24 {
+	case len(key) < 24:
 		return fmt.Sprintf("%-24s", key)[:24]
-	} else if len(key) < 32 {
+	case len(key) < 32:
 		return fmt.Sprintf("%-32s", key)[:32]
+	default:
+		return key[:32]
 	}
-	return key[:32]
 }
 
 func convertDataToPBDatas(d models.DataToPass) *pb.DataToPass {

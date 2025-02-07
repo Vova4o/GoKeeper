@@ -38,7 +38,7 @@ type Data struct {
 
 // DataToPass структура для передачи данных между клиентом и сервером
 type DataToPass struct {
-	DataType  DataTypes
+	DataType   DataTypes
 	DataString string
 }
 

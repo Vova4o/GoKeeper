@@ -104,50 +104,50 @@ func (s *Storage) GetRecords(ctx context.Context) ([]models.Record, error) {
 
 // AddOrReplaceRefreshToken добавляет или обновляет токен обновления в базе данных
 func (s *Storage) AddOrReplaceRefreshToken(ctx context.Context, data string) error {
-    // Проверка наличия токена в базе данных
-    var existingToken string
-    err := s.db.QueryRowContext(ctx, "SELECT token FROM refresh_tokens LIMIT 1").Scan(&existingToken)
-    if err != nil && err != sql.ErrNoRows {
-        s.logger.Error("Failed to check existing refresh token: " + err.Error())
-        return err
-    }
+	// Проверка наличия токена в базе данных
+	var existingToken string
+	err := s.db.QueryRowContext(ctx, "SELECT token FROM refresh_tokens LIMIT 1").Scan(&existingToken)
+	if err != nil && err != sql.ErrNoRows {
+		s.logger.Error("Failed to check existing refresh token: " + err.Error())
+		return err
+	}
 
-    if existingToken != "" {
-        // Обновление существующего токена
-        updateQuery := `UPDATE refresh_tokens SET token = ? WHERE token = ?`
-        _, err := s.db.ExecContext(ctx, updateQuery, data, existingToken)
-        if err != nil {
-            s.logger.Error("Failed to update refresh token: " + err.Error())
-            return err
-        }
-        s.logger.Info("Refresh token updated successfully")
-    } else {
-        // Добавление нового токена
-        insertQuery := `INSERT INTO refresh_tokens (token) VALUES (?)`
-        _, err := s.db.ExecContext(ctx, insertQuery, data)
-        if err != nil {
-            s.logger.Error("Failed to insert refresh token: " + err.Error())
-            return err
-        }
-        s.logger.Info("Refresh token added successfully")
-    }
+	if existingToken != "" {
+		// Обновление существующего токена
+		updateQuery := `UPDATE refresh_tokens SET token = ? WHERE token = ?`
+		_, err := s.db.ExecContext(ctx, updateQuery, data, existingToken)
+		if err != nil {
+			s.logger.Error("Failed to update refresh token: " + err.Error())
+			return err
+		}
+		s.logger.Info("Refresh token updated successfully")
+	} else {
+		// Добавление нового токена
+		insertQuery := `INSERT INTO refresh_tokens (token) VALUES (?)`
+		_, err := s.db.ExecContext(ctx, insertQuery, data)
+		if err != nil {
+			s.logger.Error("Failed to insert refresh token: " + err.Error())
+			return err
+		}
+		s.logger.Info("Refresh token added successfully")
+	}
 
-    return nil
+	return nil
 }
 
 // GetRefreshToken читает последний токен обновления из базы данных
 func (s *Storage) GetRefreshToken(ctx context.Context) (string, error) {
-    var token string
-    err := s.db.QueryRowContext(ctx, "SELECT token FROM refresh_tokens LIMIT 1").Scan(&token)
-    if err != nil {
-        if err == sql.ErrNoRows {
-            s.logger.Info("No refresh tokens found")
-            return "", nil
-        }
-        s.logger.Error("Failed to read refresh token: " + err.Error())
-        return "", err
-    }
+	var token string
+	err := s.db.QueryRowContext(ctx, "SELECT token FROM refresh_tokens LIMIT 1").Scan(&token)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			s.logger.Info("No refresh tokens found")
+			return "", nil
+		}
+		s.logger.Error("Failed to read refresh token: " + err.Error())
+		return "", err
+	}
 
-    s.logger.Info("Latest refresh token read successfully")
-    return token, nil
+	s.logger.Info("Latest refresh token read successfully")
+	return token, nil
 }

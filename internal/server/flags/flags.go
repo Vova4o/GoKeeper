@@ -9,14 +9,14 @@ import (
 
 // Settings struct
 type Settings struct {
-	Host     string
-	Port     int
-	LogLevel string
-	Secret   string
-	Issuer   string
-	DSN      string
+	Host                       string
+	Port                       int
+	LogLevel                   string
+	Secret                     string
+	Issuer                     string
+	DSN                        string
 	AccessTokenDurationMinutes int
-	RefreshTokenDurationDays int
+	RefreshTokenDurationDays   int
 }
 
 // NewSettings creates a new settings instance

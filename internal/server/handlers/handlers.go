@@ -230,6 +230,7 @@ func (s *HandleServiceServer) ReceiveData(req *pb.ReceiveDataRequest, stream pb.
 
 	for _, data := range dataList {
 		pbData := &pb.DataToPass{
+			DBID: 	 int64(data.DBID),
 			DataType:   pb.DataType(data.DataType),
 			StringData: data.Data,
 		}

@@ -58,44 +58,45 @@ enum DataType {
   BANK_CARD = 3;
 }
 
-message Data {
-  DataType dataType = 1;
-  oneof data {
-    LoginPassword loginPassword = 2;
-    TextNote textNote = 3;
-    BinaryData binaryData = 4;
-    BankCard bankCard = 5;
-  }
-}
+// message Data {
+//   DataType dataType = 1;
+//   oneof data {
+//     LoginPassword loginPassword = 2;
+//     TextNote textNote = 3;
+//     BinaryData binaryData = 4;
+//     BankCard bankCard = 5;
+//   }
+// }
 
 message DataToPass {
-  DataType dataType = 1;
-  string stringData = 2;
+  int64 DBID = 1;
+  DataType dataType = 2;
+  string stringData = 3;
 }
 
-message LoginPassword {
-  string title = 1;
-  string login = 2;
-  string password = 3;
-}
+// message LoginPassword {
+//   string title = 1;
+//   string login = 2;
+//   string password = 3;
+// }
 
-message TextNote {
-  string title = 1;
-  string text = 2;
-}
+// message TextNote {
+//   string title = 1;
+//   string text = 2;
+// }
 
-message BinaryData {
-  string title = 1;
-  bytes data = 2;
-}
+// message BinaryData {
+//   string title = 1;
+//   bytes data = 2;
+// }
 
-message BankCard {
-  string title = 1;
-  string cardNumber = 2;
-  string cardHolder = 3;
-  string cvv = 4;
-  string expiryDate = 5;
-}
+// message BankCard {
+//   string title = 1;
+//   string cardNumber = 2;
+//   string cardHolder = 3;
+//   string cvv = 4;
+//   string expiryDate = 5;
+// }
 
 message SendDataRequest {
   DataToPass data = 1;

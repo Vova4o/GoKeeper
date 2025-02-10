@@ -253,7 +253,7 @@ func (s *Storage) SaveData(ctx context.Context, userID int, dataType models.Data
 
 // ReadData читает данные по типу
 func (s *Storage) ReadData(ctx context.Context, userID int, dataType models.DataType) ([]*models.PrivateInfo, error) {
-	query := `SELECT user_id, data_type, data FROM private_infos WHERE user_id  = $1 AND data_type = $2`
+	query := `SELECT id, user_id, data_type, data FROM private_infos WHERE user_id  = $1 AND data_type = $2`
 	rows, err := s.db.QueryContext(ctx, query, userID, dataType)
 	if err != nil {
 		s.logger.Error("Failed to read data: " + err.Error())
@@ -265,7 +265,7 @@ func (s *Storage) ReadData(ctx context.Context, userID int, dataType models.Data
 	for rows.Next() {
 		var privateInfo models.PrivateInfo
 
-		err := rows.Scan(&privateInfo.UserID, &privateInfo.DataType, &privateInfo.Data)
+		err := rows.Scan(&privateInfo.DBID, &privateInfo.UserID, &privateInfo.DataType, &privateInfo.Data)
 		if err != nil {
 			s.logger.Error("Failed to scan row: " + err.Error())
 			return nil, err

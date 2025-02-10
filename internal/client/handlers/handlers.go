@@ -332,7 +332,13 @@ func (c *GRPCClient) GetDataFromServer(ctx context.Context, dataType models.Data
 			return nil, err
 		}
 
-		dataList = append(dataList, decryptedData)
+		readData := models.Data{
+			DBID:     int(res.Data.DBID),
+			DataType: decryptedData.DataType,
+			Data:     decryptedData.Data,
+		}
+
+		dataList = append(dataList, readData)
 	}
 
 	return dataList, nil

@@ -312,6 +312,7 @@ func (s *Service) ReadData(ctx context.Context, userID int, dataType models.Data
 	var dataList []*models.DataToPass
 	for _, privateInfo := range privateInfos {
 		dataList = append(dataList, &models.DataToPass{
+			DBID:     privateInfo.DBID,
 			DataType: dataType,
 			Data:     privateInfo.Data,
 		})
@@ -319,64 +320,3 @@ func (s *Service) ReadData(ctx context.Context, userID int, dataType models.Data
 
 	return dataList, nil
 }
-
-// // RecordData записывает данные
-// func (s *Service) RecordData(ctx context.Context, userID int, data models.Data) error {
-// 	// check if user exists
-// 	_, err := s.stor.FindUserByID(ctx, userID)
-// 	if err != nil {
-// 		s.logger.Error("Failed to find user: " + err.Error())
-// 		return err
-// 	}
-
-// 	// ok so have models.Data, need to serrilize it to bynary string
-// 	stringToStore, err := models.SerializeData(data)
-// 	if err != nil {
-// 		s.logger.Error("Failed to serialize data: " + err.Error())
-// 		return err
-// 	}
-
-// 	switch data.DataType {
-// 	case models.DataTypeTextNote:
-// 		err := s.stor.SaveData(ctx, userID, models.DataTypeTextNote, stringToStore)
-// 		if err != nil {
-// 			s.logger.Error("Failed to save data: " + err.Error())
-// 			return err
-// 		}
-// 	case models.DataTypeLoginPassword:
-// 		err := s.stor.SaveData(ctx, userID, models.DataTypeLoginPassword, stringToStore)
-// 		if err != nil {
-// 			s.logger.Error("Failed to save data: " + err.Error())
-// 			return err
-// 		}
-// 	case models.DataTypeBinaryData:
-// 		err := s.stor.SaveData(ctx, userID, models.DataTypeBinaryData, stringToStore)
-// 		if err != nil {
-// 			s.logger.Error("Failed to save data: " + err.Error())
-// 			return err
-// 		}
-// 	case models.DataTypeBankCard:
-// 		err := s.stor.SaveData(ctx, userID, models.DataTypeBankCard, stringToStore)
-// 		if err != nil {
-// 			s.logger.Error("Failed to save data: " + err.Error())
-// 			return err
-// 		}
-// 	default:
-// 		s.logger.Error("Unknown data type")
-// 		return errors.New("unknown data type")
-// 	}
-
-// 	return nil
-// }
-
-// // ReadData читает данные по типу
-// func (s *Service) ReadData(ctx context.Context, userID int) ([]*models.Data, error) {
-// 	// check if user exists
-// 	_, err := s.stor.FindUserByID(ctx, userID)
-// 	if err != nil {
-// 		s.logger.Error("Failed to find user: " + err.Error())
-// 		return nil, err
-// 	}
-
-// 	return s.stor.ReadData(ctx, userID)
-// }

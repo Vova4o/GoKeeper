@@ -24,6 +24,7 @@ type ContextKey struct {
 
 // DataToPass type that pssing data to the server to save and from the server to the client to show
 type DataToPass struct {
+	DBID     int
 	DataType DataType
 	Data     string
 }
@@ -57,6 +58,7 @@ type RefreshToken struct {
 
 // PrivateInfo модель для хранения приватной информации
 type PrivateInfo struct {
+	DBID     int 
 	UserID   int
 	DataType int
 	Data     string

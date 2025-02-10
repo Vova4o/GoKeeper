@@ -32,6 +32,7 @@ type DataContent interface {
 
 // Data структура для хранения данных
 type Data struct {
+	DBID     int
 	DataType DataTypes
 	Data     DataContent
 }

@@ -11,5 +11,26 @@ services:
     volumes:
       - db_data:/var/lib/postgresql/data
 
+  server:
+    build: .
+    container_name: go_keeper_server
+    ports:
+      - "50051:50051"
+      - "8080:8080"
+    depends_on:
+      - db
+    environment:
+      HOST: 0.0.0.0
+      PORT: 50051
+      LOG_LEVEL: info
+      SECRET: your-secret-key
+      ISSUER: your-issuer
+      DSN: host=db user=postgres password=password dbname=goKeeper sslmode=disable
+      ACCESS_TOKEN_DURATION_MINUTES: 15
+      REFRESH_TOKEN_DURATION_DAYS: 7
+    volumes:
+      - ./ssl:/app/ssl
+
 volumes:
   db_data:
+  ssl:

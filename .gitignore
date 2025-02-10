@@ -3,3 +3,6 @@ server.key
 keeper.db
 .preferences.md
 coverage.out
+build_client.sh
+dist/client.exe
+.gitignore
